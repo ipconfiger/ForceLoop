@@ -106,15 +106,26 @@ pub struct SetupReport {
 /// into a type alias to keep the `COMMANDS` literal readable.
 type CommandEntry = (&'static str, fn() -> CommandSchema);
 
-/// Static table of all 10 Command objects.
+/// Static table of the 9 non-setup Command objects that get registered
+/// as platform-native slash command / Skill files.
 ///
-/// This table intentionally enumerates every Command — adding a new
-/// Command without adding an entry here is a build-time oversight that
-/// the `all_10_commands_have_populated_schemas` test in
-/// `tests/command_compile.rs` will not catch, but the `run()` invariant
-/// (10 files per target) will.
+/// `Setup` is intentionally excluded: it is a terminal-only subcommand
+/// for project initialization, not a runtime-invokable skill. Including
+/// it would write `setup.md` to `.claude/commands/` and
+/// `.opencode/command/`, surfacing an entry in the IDE's command
+/// palette that should never be clicked (project init is a one-shot
+/// terminal action).
+///
+/// This table is the single source of truth for which Commands get
+/// registered. Adding a new Command (other than `Setup`) requires:
+///   1. Implement `CommandMetadata` for it
+///   2. Add a row here
+///
+/// If you add a new row, `run_writes_all_nine_commands_per_target` in
+/// `tests/setup_tool.rs` will fail until you update its expected set —
+/// this is intentional, the test pins the contract.
 const COMMANDS: &[CommandEntry] = &[
-    ("setup", || Setup.command_template()),
+    // ("setup", || Setup.command_template()),  // intentionally omitted
     ("gate", || Gate.command_template()),
     ("status", || Status.command_template()),
     ("archive", || Archive.command_template()),
@@ -235,9 +246,12 @@ mod tests {
     }
 
     #[test]
-    fn commands_table_has_ten_entries() {
-        // If you add a new Command, add it here too. The 10-file
-        // invariant in `run()` tests depends on this.
-        assert_eq!(COMMANDS.len(), 10);
+    fn commands_table_has_nine_entries() {
+        // `Setup` is intentionally excluded from the COMMANDS table —
+        // it is a terminal-only subcommand, not a registered
+        // skill/slash command. See `.omc/plans/setup-excludes-self.md`
+        // for rationale. The 9-file invariant in `run()` tests
+        // (see `tests/setup_tool.rs`) depends on this count.
+        assert_eq!(COMMANDS.len(), 9);
     }
 }

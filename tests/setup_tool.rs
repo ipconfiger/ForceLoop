@@ -40,16 +40,16 @@ fn execute_with_two_targets_preserves_order() {
 fn run_default_writes_both_targets() {
     let tmp = TempDir::new().unwrap();
     let report = run(&default_targets(), tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 20); // 10 commands × 2 targets
-    assert!(tmp.path().join(".claude/commands/setup.md").exists());
-    assert!(tmp.path().join(".opencode/command/setup.md").exists());
+    assert_eq!(report.written.len(), 18); // 9 commands × 2 targets
+    assert!(tmp.path().join(".claude/commands/gate.md").exists());
+    assert!(tmp.path().join(".opencode/command/gate.md").exists());
 }
 
 #[test]
 fn claude_only_writes_claude_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::Claude], tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 10);
+    assert_eq!(report.written.len(), 9);
     assert!(tmp.path().join(".claude/commands/new.md").exists());
     assert!(!tmp.path().join(".opencode/").exists());
 }
@@ -58,7 +58,7 @@ fn claude_only_writes_claude_dir() {
 fn opencode_only_writes_opencode_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::OpenCode], tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 10);
+    assert_eq!(report.written.len(), 9);
     assert!(tmp.path().join(".opencode/command/new.md").exists());
     assert!(!tmp.path().join(".claude/").exists());
 }
@@ -67,7 +67,7 @@ fn opencode_only_writes_opencode_dir() {
 fn written_files_have_valid_frontmatter() {
     let tmp = TempDir::new().unwrap();
     run(&[Target::Claude], tmp.path()).unwrap();
-    let content = fs::read_to_string(tmp.path().join(".claude/commands/setup.md")).unwrap();
+    let content = fs::read_to_string(tmp.path().join(".claude/commands/gate.md")).unwrap();
     assert!(content.starts_with("---\n"));
     assert!(content.contains("\n---\n"));
     assert!(content.contains("description:"));
@@ -80,7 +80,7 @@ fn run_creates_deeply_nested_root() {
     // create_dir_all should handle this — should not error.
     let report = run(&[Target::Claude], &bogus).unwrap();
     assert!(!report.written.is_empty());
-    assert!(bogus.join(".claude/commands/setup.md").exists());
+    assert!(bogus.join(".claude/commands/gate.md").exists());
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn run_overwrites_existing_files_with_current_compile_output() {
     // Documented behavior: fs::write silently overwrites. Re-running
     // `setup` produces the same content — deterministic, idempotent.
     let tmp = TempDir::new().unwrap();
-    let target_path = tmp.path().join(".claude/commands/setup.md");
+    let target_path = tmp.path().join(".claude/commands/gate.md");
     fs::create_dir_all(target_path.parent().unwrap()).unwrap();
     fs::write(&target_path, "STALE CONTENT FROM PREVIOUS RUN").unwrap();
 
@@ -125,8 +125,10 @@ fn run_overwrites_existing_files_with_current_compile_output() {
 }
 
 #[test]
-fn run_writes_all_ten_commands_per_target() {
+fn run_writes_all_nine_commands_per_target() {
     // Sanity: every Command in the static table is written.
+    // `setup.md` is intentionally absent — see
+    // `setup_md_is_not_generated` for the rationale.
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::Claude], tmp.path()).unwrap();
     let names: BTreeSet<_> = report
@@ -135,7 +137,6 @@ fn run_writes_all_ten_commands_per_target() {
         .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
         .collect();
     let expected: BTreeSet<_> = [
-        "setup.md",
         "gate.md",
         "status.md",
         "archive.md",
@@ -158,7 +159,7 @@ fn run_opencode_files_use_singular_command_dir() {
     // not `.opencode/commands/` (plural). Verify path conventions.
     let tmp = TempDir::new().unwrap();
     run(&[Target::OpenCode], tmp.path()).unwrap();
-    assert!(tmp.path().join(".opencode/command/setup.md").exists());
+    assert!(tmp.path().join(".opencode/command/gate.md").exists());
     assert!(!tmp.path().join(".opencode/commands/").exists());
 }
 
@@ -167,6 +168,31 @@ fn run_claude_files_use_plural_commands_dir() {
     // Claude Code's convention is `.claude/commands/` (plural).
     let tmp = TempDir::new().unwrap();
     run(&[Target::Claude], tmp.path()).unwrap();
-    assert!(tmp.path().join(".claude/commands/setup.md").exists());
+    assert!(tmp.path().join(".claude/commands/gate.md").exists());
     assert!(!tmp.path().join(".claude/command/").exists());
+}
+
+#[test]
+fn setup_md_is_not_generated() {
+    // Regression test: `Setup` is a terminal-only subcommand, not a
+    // registered skill / slash command. `run()` must not produce
+    // `setup.md` on any target. See `.omc/plans/setup-excludes-self.md`.
+    let tmp = TempDir::new().unwrap();
+    let report = run(&default_targets(), tmp.path()).unwrap();
+    assert!(
+        !report
+            .written
+            .iter()
+            .any(|p| p.file_name().unwrap() == "setup.md"),
+        "run() must not produce a `setup.md` file; got: {:?}",
+        report.written
+    );
+    assert!(
+        !tmp.path().join(".claude/commands/setup.md").exists(),
+        ".claude/commands/setup.md must not exist"
+    );
+    assert!(
+        !tmp.path().join(".opencode/command/setup.md").exists(),
+        ".opencode/command/setup.md must not exist"
+    );
 }
