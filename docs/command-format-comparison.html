@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code vs sst/opencode 自定义命令格式调研</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #1a1a1a;
+      --muted: #6a737d;
+      --border: #e1e4e8;
+      --accent: #0366d6;
+      --accent-bg: #f1f8ff;
+      --code-bg: #f6f8fa;
+      --table-stripe: #fafbfc;
+      --good: #22863a;
+      --bad: #cb2431;
+      --warn: #b08800;
+      --claude: #d97706;
+      --opencode: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      color: var(--fg);
+      background: var(--bg);
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    h1, h2, h3, h4 { font-weight: 600; line-height: 1.25; margin-top: 2rem; margin-bottom: 1rem; }
+    h1 { font-size: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+    h3 { font-size: 1.2rem; color: #444; }
+    p, li { font-size: 0.95rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+    code {
+      font-family: "SF Mono", Monaco, Consolas, "Courier New", monospace;
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.88em;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    pre code { background: none; padding: 0; font-size: inherit; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.7rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--code-bg); font-weight: 600; }
+    tr:nth-child(even) td { background: var(--table-stripe); }
+    .ok { color: var(--good); font-weight: 600; }
+    .no { color: var(--bad); font-weight: 600; }
+    .partial { color: var(--warn); font-weight: 600; }
+    .tag {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+    .tag-claude { background: #fef3c7; color: var(--claude); }
+    .tag-opencode { background: #ede9fe; color: var(--opencode); }
+    .tag-both { background: #dcfce7; color: var(--good); }
+    blockquote {
+      margin: 1rem 0;
+      padding: 0.5rem 1rem;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-bg);
+      color: #1f3a5f;
+      border-radius: 0 4px 4px 0;
+    }
+    .callout {
+      margin: 1rem 0;
+      padding: 0.8rem 1rem;
+      border-radius: 6px;
+      border: 1px solid;
+    }
+    .callout-conclusion { background: #f0fdf4; border-color: #86efac; }
+    .callout-warning { background: #fefce8; border-color: #fde047; }
+    .callout-unverified { background: #fef2f2; border-color: #fca5a5; }
+    h2 .anchor, h3 .anchor { color: var(--muted); margin-left: 0.3rem; font-size: 0.7em; }
+    .toc { background: var(--code-bg); padding: 1rem 1.5rem; border-radius: 6px; margin: 1.5rem 0; }
+    .toc ul { margin: 0.5rem 0 0; padding-left: 1.5rem; }
+    .toc li { margin: 0.2rem 0; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0 1rem; }
+  </style>
+</head>
+<body>
+
+<h1>Claude Code vs sst/opencode 自定义命令格式调研</h1>
+
+<p class="meta">
+  ForceLoop 项目研究文档 · 2026-06-10 · 目的：评估是否能用一套通用 schema 覆盖两个系统的自定义命令
+</p>
+
+<div class="toc">
+  <strong>目录</strong>
+  <ul>
+    <li><a href="#summary">调研结论速览</a></li>
+    <li><a href="#locations">1. 文件位置</a></li>
+    <li><a href="#samples">2. 真实样本对比</a></li>
+    <li><a href="#fields">3. Frontmatter 字段交集</a></li>
+    <li><a href="#differences">4. 关键差异</a></li>
+    <li><a href="#universal">5. 通用格式建议</a></li>
+    <li><a href="#forceloop">6. ForceLoop 落地建议</a></li>
+    <li><a href="#unverified">7. 待验证事项</a></li>
+  </ul>
+</div>
+
+<div class="callout callout-conclusion">
+  <h2 id="summary" style="margin-top:0">📋 调研结论速览</h2>
+  <p><strong>核心结论</strong>：两边底层都是「YAML frontmatter + markdown body」结构，<strong>可以共用</strong>，但需要一层薄薄的转换层（codegen），不存在 100% 字段重合的零摩擦方案。</p>
+  <p><strong>最大公约数</strong>：<code>name</code> · <code>description</code> · <code>model</code> · <code>argument-hint</code>（仅 Claude）· 工具白名单（语法不同）</p>
+  <p><strong>最低成本实现</strong>：写一份 ForceLoop 自己的 schema + 一个 <code>forceloop command compile</code> codegen，把同一份 .md 转成两边原生格式。</p>
+</div>
+
+<h2 id="locations">1. 文件位置</h2>
+
+<table>
+  <thead>
+    <tr><th>类型</th><th>Claude Code</th><th>sst/opencode</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Command</strong></td>
+      <td><code>.claude/commands/&lt;name&gt;.md</code></td>
+      <td><code>.opencode/command/**/*.md</code> <em>(单/复数都支持)</em></td>
+    </tr>
+    <tr>
+      <td><strong>Plugin command</strong></td>
+      <td><code>&lt;plugin&gt;/commands/&lt;name&gt;.md</code></td>
+      <td>n/a（OpenCode 无插件层）</td>
+    </tr>
+    <tr>
+      <td><strong>Skill</strong></td>
+      <td><code>.claude/skills/&lt;name&gt;/SKILL.md</code></td>
+      <td><code>.opencode/skill/{*.md, **/SKILL.md}</code></td>
+    </tr>
+    <tr>
+      <td><strong>Sub-agent</strong></td>
+      <td><code>.claude/agents/&lt;name&gt;.md</code></td>
+      <td><code>.opencode/agent/**/*.md</code></td>
+    </tr>
+    <tr>
+      <td><strong>全局 / 用户范围</strong></td>
+      <td><code>~/.claude/{commands,skills,agents}/</code></td>
+      <td><code>~/.config/opencode/...</code> <em>(未本地验证)</em></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="samples">2. 真实样本对比</h2>
+
+<h3>2.1 Claude Code Command</h3>
+<p>来源：<code>claude-hud/commands/setup.md</code>（本地）</p>
+<pre><code>---
+description: Configure claude-hud as your statusline
+allowed-tools: Bash, Read, Edit, AskUserQuestion
+---
+
+**Note**: Placeholders like `{RUNTIME_PATH}`, `{SOURCE}`, and
+`{GENERATED_COMMAND}` should be substituted with actual detected values.
+
+## Step 0: Detect Ghost Installation (Run First)
+...</code></pre>
+
+<h3>2.2 Claude Code Skill</h3>
+<p>来源：<code>~/.claude/skills/pptx/SKILL.md</code></p>
+<pre><code>---
+name: pptx
+description: "Use this skill any time a .pptx file is involved in any way..."
+license: Proprietary. LICENSE.txt has complete terms
+---
+
+# PPTX Skill
+
+## Quick Reference
+| Task | Guide |
+|------|-------|
+| Read/analyze content | `python -m markitdown presentation.pptx` |
+...</code></pre>
+
+<h3>2.3 Claude Code Sub-agent</h3>
+<p>来源：<code>omc/agents/code-reviewer.md</code></p>
+<pre><code>---
+name: code-reviewer
+description: Expert code review specialist with severity-rated feedback
+model: claude-opus-4-6
+disallowedTools: Write, Edit
+---
+
+&lt;Agent_Prompt&gt;
+  &lt;Role&gt;
+    You are Code Reviewer. Your mission is to ensure code quality...
+  &lt;/Role&gt;
+  &lt;Why_This_Matters&gt;...&lt;/Why_This_Matters&gt;
+  &lt;Success_Criteria&gt;...&lt;/Success_Criteria&gt;
+  &lt;Constraints&gt;...&lt;/Constraints&gt;
+&lt;/Agent_Prompt&gt;</code></pre>
+
+<h3>2.4 OpenCode Command (v2 schema)</h3>
+<p>来源：<code>packages/core/src/config/command.ts</code>（v1.17.0+）</p>
+<pre><code>---
+description: &lt;text&gt;
+agent: &lt;sub-agent-name&gt;    # 委派给某个 agent
+model: &lt;model-id&gt;
+variant: &lt;variant-name&gt;
+subtask: &lt;bool&gt;           # 是否作为子任务派发
+---
+
+# body 支持 shell escape 和文件引用
+
+!`bash command`           # 执行 shell
+
+@file/path                # 引用文件内容
+
+$ARGUMENTS                # 唯一参数占位符
+</code></pre>
+
+<h3>2.5 OpenCode Agent (v2)</h3>
+<pre><code>---
+model: &lt;id&gt;
+variant: &lt;id&gt;
+request: &lt;prompt-source&gt;
+system: &lt;system-prompt&gt;   # 单字符串，不是 XML 结构
+description: &lt;text&gt;
+mode: &lt;primary|subagent|all&gt;
+hidden: &lt;bool&gt;
+color: &lt;hex&gt;
+steps: &lt;int&gt;
+disabled: &lt;bool&gt;
+permissions: ...           # 替代 v1 的 tools: Record&lt;string, boolean&gt;
+---</code></pre>
+
+<blockquote>
+<strong>迁移提示</strong>：v1 的 <code>tools: {"bash": true, "read": false, "*": false}</code> 已 <code>@deprecated</code>，自动迁移到 <code>permissions</code>，<code>write</code> / <code>edit</code> / <code>patch</code> 折叠成 <code>edit</code>。
+</blockquote>
+
+<h3>2.6 OpenCode Skill</h3>
+<pre><code>---
+name: &lt;id&gt;
+description: &lt;text&gt;
+slash: &lt;bool&gt;             # 是否暴露为 /slash command
+---</code></pre>
+
+<h2 id="fields">3. Frontmatter 字段交集</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>字段</th>
+      <th>Claude Code</th>
+      <th>OpenCode</th>
+      <th>通用格式?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>name</code></td>
+      <td><span class="ok">✅</span> skill, agent</td>
+      <td><span class="ok">✅</span> skill, agent</td>
+      <td><span class="tag tag-both">通用</span></td>
+    </tr>
+    <tr>
+      <td><code>description</code></td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="tag tag-both">通用</span></td>
+    </tr>
+    <tr>
+      <td><code>model</code></td>
+      <td><span class="ok">✅</span> agent</td>
+      <td><span class="ok">✅</span> command, agent</td>
+      <td><span class="tag tag-both">通用</span></td>
+    </tr>
+    <tr>
+      <td><code>argument-hint</code></td>
+      <td><span class="ok">✅</span> command</td>
+      <td><span class="no">❌</span></td>
+      <td><span class="tag tag-claude">Claude only</span></td>
+    </tr>
+    <tr>
+      <td><code>allowed-tools</code></td>
+      <td><span class="ok">✅</span> command</td>
+      <td><span class="no">❌</span> (v1 <code>tools</code> 已废)</td>
+      <td><span class="tag tag-claude">Claude only</span></td>
+    </tr>
+    <tr>
+      <td><code>disallowedTools</code></td>
+      <td><span class="ok">✅</span> agent</td>
+      <td><span class="no">❌</span></td>
+      <td><span class="tag tag-claude">Claude only</span></td>
+    </tr>
+    <tr>
+      <td><code>permissions</code></td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span> agent</td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>agent</code> (委派)</td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span> command</td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>subtask</code></td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span> command</td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>disable-model-invocation</code></td>
+      <td><span class="ok">✅</span> command</td>
+      <td><span class="no">❌</span></td>
+      <td><span class="tag tag-claude">Claude only</span></td>
+    </tr>
+    <tr>
+      <td><code>slash</code></td>
+      <td><span class="no">❌</span> 隐式</td>
+      <td><span class="ok">✅</span> skill</td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>variant</code></td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>system</code> (单行)</td>
+      <td><span class="no">❌</span> (用 XML body)</td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>request</code></td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+    <tr>
+      <td><code>color</code> / <code>hidden</code> / <code>disabled</code> / <code>steps</code></td>
+      <td><span class="no">❌</span></td>
+      <td><span class="ok">✅</span></td>
+      <td><span class="tag tag-opencode">OpenCode only</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="differences">4. 关键差异（影响通用格式设计）</h2>
+
+<table>
+  <thead>
+    <tr><th>维度</th><th>Claude Code</th><th>OpenCode</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>参数占位符</strong></td>
+      <td><code>$ARGUMENTS</code>, <code>$1</code>/<code>$2</code> (旧)</td>
+      <td><strong>仅</strong> <code>$ARGUMENTS</code></td>
+    </tr>
+    <tr>
+      <td><strong>工具过滤语法</strong></td>
+      <td>逗号列表 <code>"Bash, Read, Edit"</code> + 可能的 <code>Bash(git:*)</code> 前缀</td>
+      <td><code>permissions: { bash: "allow", edit: "deny" }</code> 风格</td>
+    </tr>
+    <tr>
+      <td><strong>过滤方向</strong></td>
+      <td>默认全开 → <code>allowed-tools</code> 白名单; agent 用 <code>disallowedTools</code> 黑名单</td>
+      <td>v1 布尔 map; v2 用 <code>permissions</code> (allow/deny/prompt/ask)</td>
+    </tr>
+    <tr>
+      <td><strong>子 agent 提示词结构</strong></td>
+      <td>XML <code>&lt;Agent_Prompt&gt;</code> 块 (Role/Constraints/Criteria)</td>
+      <td>单字符串 <code>system: ...</code></td>
+    </tr>
+    <tr>
+      <td><strong>MCP 工具引用</strong></td>
+      <td><code>mcp__server__tool</code> 前缀</td>
+      <td><code>mcp__server__tool</code> 同样前缀 (语义/实现不同)</td>
+    </tr>
+    <tr>
+      <td><strong>Shell escape</strong></td>
+      <td>任务代理手动调</td>
+      <td>命令体内置 <code>!</code> <code>`</code>...<code>`</code></td>
+    </tr>
+    <tr>
+      <td><strong>文件引用</strong></td>
+      <td>隐式 (用工具读)</td>
+      <td>内置 <code>@file/path</code> 占位符</td>
+    </tr>
+    <tr>
+      <td><strong>Skill 触发</strong></td>
+      <td>靠 <code>description</code> 模糊匹配自动</td>
+      <td><code>slash: true</code> 显式 / 隐式自动</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="universal">5. 通用格式建议</h2>
+
+<h3>5.1 最小可用通用子集（两边都支持）</h3>
+<pre><code>---
+name: &lt;id&gt;                          # ✅ 都有
+description: &lt;text&gt;                 # ✅ 都有
+model: &lt;model-id&gt;                   # ✅ 都有 (仅两边都允许的位置)
+---
+
+# body (markdown)
+
+Arguments: $ARGUMENTS</code></pre>
+
+<p>加上可选：</p>
+<pre><code>---
+allowed-tools: ["Bash", "Read"]          # Claude 原生
+# OR
+permissions: { bash: "allow", edit: "deny" }   # OpenCode 原生
+---</code></pre>
+
+<blockquote>
+<strong>建议</strong>：使用 <strong>YAML list 风格</strong>（<code>["Bash", "Read"]</code>），而非 Claude 的逗号字符串——OpenCode 完全接受 list，Claude 也接受 list（逗号字符串是简写）。
+</blockquote>
+
+<h3>5.2 字段命名统一表（推荐给 ForceLoop）</h3>
+
+<table>
+  <thead>
+    <tr><th>通用名</th><th>Claude Code 别名</th><th>OpenCode 别名</th><th>推荐采用</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>name</code></td><td><code>name</code></td><td><code>name</code></td><td><code>name</code></td></tr>
+    <tr><td><code>description</code></td><td><code>description</code></td><td><code>description</code></td><td><code>description</code></td></tr>
+    <tr><td><code>model</code></td><td><code>model</code></td><td><code>model</code></td><td><code>model</code></td></tr>
+    <tr><td><code>tools</code></td><td><code>allowed-tools</code> / <code>disallowedTools</code></td><td><code>permissions</code></td><td><code>tools</code> (list)</td></tr>
+    <tr><td><code>argument-hint</code></td><td><code>argument-hint</code></td><td>(无)</td><td><code>argument-hint</code></td></tr>
+    <tr><td><code>agent</code> (委派)</td><td>(无, 用 <code>&lt;Agent_Prompt&gt;</code> body)</td><td><code>agent</code></td><td><code>agent</code></td></tr>
+    <tr><td><code>prompt</code> / <code>body</code></td><td>body markdown</td><td><code>system</code> + body</td><td><code>prompt</code></td></tr>
+  </tbody>
+</table>
+
+<h2 id="forceloop">6. ForceLoop 落地建议</h2>
+
+<p>如果想实现「一份定义，两边跑」：</p>
+
+<ol>
+  <li><strong>写一份</strong> ForceLoop 自己的 command schema（<code>name</code>, <code>description</code>, <code>model</code>, <code>tools</code>, <code>argument-hint</code>, <code>agent</code>, <code>prompt</code>），存到 <code>.forceloop/commands/&lt;name&gt;.md</code></li>
+  <li><strong>加一层 codegen</strong> 把 ForceLoop schema 转成两边原生格式：
+    <ul>
+      <li>→ Claude: <code>description</code>, <code>allowed-tools: [list]</code>, body 直接用 prompt</li>
+      <li>→ OpenCode: <code>description</code>, <code>model</code>, <code>agent</code>, body 直接用 prompt（v2 暂不支持 <code>tools</code> 在 command 上，转换成把 <code>permissions</code> 透传到所委派的 <code>agent</code>）</li>
+    </ul>
+  </li>
+  <li><strong>不通用字段</strong>（<code>disable-model-invocation</code> / <code>subtask</code> / <code>slash</code>）作为「目标平台特定覆盖」放在 <code>platforms: { claude: {...}, opencode: {...} }</code> 子表里</li>
+</ol>
+
+<h3>6.1 ForceLoop 通用 command 草案</h3>
+<pre><code>---
+name: code-review
+description: "Review changed files across dimensions with severity-rated feedback"
+model: opus
+tools: [Read, Grep, Bash]              # 通用工具白名单 (list 形式)
+argument-hint: "[files...]"
+agent: code-reviewer                    # 委派给哪个子 agent
+---
+
+You are Code Reviewer. Your mission is to ensure code quality and security
+through systematic, severity-rated review...</code></pre>
+
+<h4>→ 转 Claude</h4>
+<pre><code>description: "Review changed files across dimensions with severity-rated feedback"
+allowed-tools: [Read, Grep, Bash]
+model: claude-opus-4-6
+</code></pre>
+<p>body 直接 = prompt。</p>
+
+<h4>→ 转 OpenCode</h4>
+<pre><code>description: "Review changed files across dimensions with severity-rated feedback"
+model: opus
+agent: code-reviewer
+</code></pre>
+<p>body 直接 = prompt（如果 command 没有 <code>tools</code> 字段，权限由所委派 <code>agent.permissions</code> 提供）。</p>
+
+<h2 id="unverified">7. 不确定 / 待验证事项</h2>
+
+<div class="callout callout-unverified">
+  <h3 style="margin-top:0">⚠️ Unverified 清单</h3>
+  <ul>
+    <li><strong>OpenCode 全局路径</strong> <code>~/.config/opencode/...</code> 未本地验证（子 agent 报告标记为 unverified）</li>
+    <li><strong>OpenCode <code>subtask</code> 字段语义</strong>（同步? 异步? 后台?）— 源码声明存在，consumer 未追踪</li>
+    <li><strong>OpenCode MCP 集成</strong>：<code>config/mcp.ts</code> 文件在远端 git 拉取超时，未拿到 schema</li>
+    <li><strong>Claude Code <code>model</code> 字段在 command 中是否生效</strong>（本地样本里只在 agent 里用 <code>model</code>）</li>
+    <li><strong>Claude Code <code>allowed-tools</code> 的 <code>Bash(git:*)</code> 前缀语法</strong>（子 agent 报告里标记为 unverified）</li>
+    <li><strong>OpenCode <code>$ARGUMENTS</code> 插值规则</strong>（<code>$1</code>/<code>$2</code> 位置参数既未确认支持也未排除）</li>
+  </ul>
+</div>
+
+<hr style="margin-top:3rem; border:none; border-top:1px solid var(--border);">
+<p class="meta">
+  本文档由 ForceLoop 调研产出 · 验证方法：本地 Claude Code 安装的真实 plugin/skill/agent 样本 + 远端 sst/opencode 源码（v1.17.0+）。
+  待验证项见 <a href="#unverified">第 7 节</a>，建议下一轮通过源码 + 实操 codegen PoC 二次确认。
+</p>
+
+</body>
+</html>

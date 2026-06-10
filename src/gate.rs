@@ -1,5 +1,6 @@
 use crate::context::Context;
 use crate::errors::Result;
+use crate::schema::CommandSchema;
 use crate::traits::{CommandMetadata, Executable, Subcommand};
 
 pub struct Gate;
@@ -20,11 +21,11 @@ impl Subcommand for Gate {
 }
 
 impl CommandMetadata for Gate {
-    fn skill_template(&self) -> &'static str {
-        ""
+    fn skill_template(&self) -> CommandSchema {
+        CommandSchema::default()
     }
-    fn command_template(&self) -> &'static str {
-        ""
+    fn command_template(&self) -> CommandSchema {
+        CommandSchema::default()
     }
     fn artifacts(&self) -> &[&'static str] {
         &[]

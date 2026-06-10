@@ -1,5 +1,6 @@
 use crate::context::Context;
 use crate::errors::Result;
+use crate::schema::CommandSchema;
 
 /// Trait shared by Skills and Commands
 pub trait Executable {
@@ -15,11 +16,13 @@ pub trait Subcommand: Executable {
 /// Trait for declarative metadata shared by all Command objects.
 /// Provides skill/command templates, artifact file lists, and gating logic.
 pub trait CommandMetadata {
-    /// Returns the Skill template that defines this command's workflow steps.
-    fn skill_template(&self) -> &'static str;
+    /// Returns the ForceLoop-native Skill schema for this command.
+    /// Compile to platform-native format via `crate::compiler::compile`.
+    fn skill_template(&self) -> CommandSchema;
 
-    /// Returns the Command template that defines how to invoke this command.
-    fn command_template(&self) -> &'static str;
+    /// Returns the ForceLoop-native Command schema for this command.
+    /// Compile to platform-native format via `crate::compiler::compile`.
+    fn command_template(&self) -> CommandSchema;
 
     /// Returns the list of artifact files this command produces.
     fn artifacts(&self) -> &[&'static str];

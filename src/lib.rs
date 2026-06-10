@@ -1,10 +1,12 @@
 pub mod archive;
 pub mod cli;
 pub mod commands;
+pub mod compiler;
 pub mod constants;
 pub mod context;
 pub mod errors;
 pub mod gate;
+pub mod schema;
 pub mod setup;
 pub mod status;
 pub mod traits;
