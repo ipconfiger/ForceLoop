@@ -1,9 +1,11 @@
 pub mod archive;
 pub mod cli;
 pub mod commands;
+pub mod constants;
 pub mod context;
 pub mod errors;
 pub mod gate;
 pub mod setup;
 pub mod status;
 pub mod traits;
+pub mod utils;
