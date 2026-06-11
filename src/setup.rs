@@ -1,66 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::archive::Archive;
 use crate::commands::{Audit, Implement, New, Plan, Review, TryFinish};
 use crate::compiler::{compile, Target};
 use crate::context::Context;
 use crate::errors::Result;
-use crate::gate::Gate;
 use crate::schema::CommandSchema;
-use crate::status::Status;
 use crate::traits::{CommandMetadata, Executable, Subcommand};
-
-const SKILL_PROMPT: &str = "\
-# Project Setup Skill
-
-Initialize the current directory as a ForceLoop project.
-
-## Steps
-1. Create `.forceloop/{skills,commands,hooks,archive}/` directory tree.
-2. Write initial `.forceloop/state.json` (phase 0, no active command).
-3. Generate platform-native command files from `CommandMetadata` for
-   each target specified by `--tool` (omit `--tool` to install to
-   both Claude Code and OpenCode):
-   - `--tool claude`   → `.claude/commands/<name>.md`
-   - `--tool opencode` → `.opencode/command/<name>.md`
-4. Install git hooks for `gate` control.
-5. Print summary of installed components.
-
-## Verification
-- `.forceloop/state.json` exists
-- 10 command files generated
-- Hooks executable
-";
-
-const COMMAND_PROMPT: &str = "\
-Initialize the current directory as a ForceLoop project.
-
-Creates `.forceloop/` tree, generates platform-native command files for
-each target specified by `--tool` (Claude Code and/or OpenCode),
-installs hooks, writes initial state.
-
-Use once per project, or to repair corrupted state.
-";
-
-fn setup_skill() -> CommandSchema {
-    CommandSchema {
-        name: "setup",
-        description: "Initialize project directory structure, state, subcommands, skills, and hooks",
-        model: None,
-        argument_hint: None,
-        tools: &["Bash", "Read", "Write", "Glob"],
-        agent: None,
-        prompt: SKILL_PROMPT,
-    }
-}
-
-fn setup_command() -> CommandSchema {
-    CommandSchema {
-        prompt: COMMAND_PROMPT,
-        ..setup_skill()
-    }
-}
 
 /// **Source of truth** for the default `setup` behavior when `--tool`
 /// is not specified: install to BOTH Claude Code and OpenCode.
@@ -106,29 +52,27 @@ pub struct SetupReport {
 /// into a type alias to keep the `COMMANDS` literal readable.
 type CommandEntry = (&'static str, fn() -> CommandSchema);
 
-/// Static table of the 9 non-setup Command objects that get registered
-/// as platform-native slash command / Skill files.
+/// Static table of the 6 Skill / Custom Command objects that get
+/// registered as platform-native slash command / Skill files.
 ///
-/// `Setup` is intentionally excluded: it is a terminal-only subcommand
-/// for project initialization, not a runtime-invokable skill. Including
-/// it would write `setup.md` to `.claude/commands/` and
-/// `.opencode/command/`, surfacing an entry in the IDE's command
-/// palette that should never be clicked (project init is a one-shot
-/// terminal action).
+/// The 4 top-level subcommands (Setup, Gate, Status, Archive) are
+/// intentionally excluded: they are terminal-only CLI subcommands,
+/// not runtime-invokable skills. Including any of them would write
+/// `<name>.md` to `.claude/commands/` and `.opencode/command/`,
+/// surfacing entries in the IDE's command palette that should never
+/// be clicked (project init and pipeline orchestration are terminal
+/// actions, not skills).
 ///
 /// This table is the single source of truth for which Commands get
-/// registered. Adding a new Command (other than `Setup`) requires:
-///   1. Implement `CommandMetadata` for it
-///   2. Add a row here
+/// registered. Adding a new Skill / Custom Command requires:
+///   1. Add the struct in `src/commands/`
+///   2. Implement `CommandMetadata` for it
+///   3. Add a row here
 ///
-/// If you add a new row, `run_writes_all_nine_commands_per_target` in
+/// If you add a new row, `run_writes_all_six_commands_per_target` in
 /// `tests/setup_tool.rs` will fail until you update its expected set —
 /// this is intentional, the test pins the contract.
 const COMMANDS: &[CommandEntry] = &[
-    // ("setup", || Setup.command_template()),  // intentionally omitted
-    ("gate", || Gate.command_template()),
-    ("status", || Status.command_template()),
-    ("archive", || Archive.command_template()),
     ("new", || New.command_template()),
     ("plan", || Plan.command_template()),
     ("audit", || Audit.command_template()),
@@ -191,21 +135,6 @@ impl Subcommand for Setup {
     }
 }
 
-impl CommandMetadata for Setup {
-    fn skill_template(&self) -> CommandSchema {
-        setup_skill()
-    }
-    fn command_template(&self) -> CommandSchema {
-        setup_command()
-    }
-    fn artifacts(&self) -> &[&'static str] {
-        &[".forceloop/state.json"]
-    }
-    fn gate(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,28 +159,15 @@ mod tests {
     }
 
     #[test]
-    fn skill_prompt_describes_default_both_targets() {
-        assert!(SKILL_PROMPT.contains("Claude Code") || SKILL_PROMPT.contains("claude"));
-        assert!(SKILL_PROMPT.contains("OpenCode") || SKILL_PROMPT.contains("opencode"));
-        assert!(
-            SKILL_PROMPT.contains("--tool"),
-            "SKILL_PROMPT should reference --tool flag explicitly"
-        );
-    }
-
-    #[test]
-    fn command_prompt_describes_default_both_targets() {
-        assert!(COMMAND_PROMPT.contains("Claude") || COMMAND_PROMPT.contains("claude"));
-        assert!(COMMAND_PROMPT.contains("OpenCode") || COMMAND_PROMPT.contains("opencode"));
-    }
-
-    #[test]
-    fn commands_table_has_nine_entries() {
-        // `Setup` is intentionally excluded from the COMMANDS table —
-        // it is a terminal-only subcommand, not a registered
-        // skill/slash command. See `.omc/plans/setup-excludes-self.md`
-        // for rationale. The 9-file invariant in `run()` tests
-        // (see `tests/setup_tool.rs`) depends on this count.
-        assert_eq!(COMMANDS.len(), 9);
+    fn commands_table_has_six_entries() {
+        // Only the 6 Skill / Custom Command objects (in `src/commands/`)
+        // are registered. The 4 top-level subcommands (Setup, Gate,
+        // Status, Archive) are terminal CLI subcommands and intentionally
+        // excluded from this table — they should never appear in the
+        // IDE's command palette. See
+        // `.omc/plans/command-metadata-narrow-to-commands.md` for rationale.
+        // The 6-file invariant in `run()` tests (see `tests/setup_tool.rs`)
+        // depends on this count.
+        assert_eq!(COMMANDS.len(), 6);
     }
 }

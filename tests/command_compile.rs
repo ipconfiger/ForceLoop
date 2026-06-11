@@ -1,10 +1,6 @@
-use forceloop::archive::Archive;
 use forceloop::commands::{Audit, Implement, New, Plan, Review, TryFinish};
 use forceloop::compiler::{compile, compile_agent, Target};
-use forceloop::gate::Gate;
 use forceloop::schema::CommandSchema;
-use forceloop::setup::Setup;
-use forceloop::status::Status;
 use forceloop::traits::CommandMetadata;
 
 #[test]
@@ -76,18 +72,13 @@ fn assert_populated(name: &str, s: CommandSchema) {
 }
 
 #[test]
-fn all_10_commands_have_populated_schemas() {
-    // Subcommands
-    assert_populated("Setup", Setup.skill_template());
-    assert_populated("Setup", Setup.command_template());
-    assert_populated("Gate", Gate.skill_template());
-    assert_populated("Gate", Gate.command_template());
-    assert_populated("Status", Status.skill_template());
-    assert_populated("Status", Status.command_template());
-    assert_populated("Archive", Archive.skill_template());
-    assert_populated("Archive", Archive.command_template());
+fn all_6_commands_have_populated_schemas() {
+    // Only the 6 Skill / Custom Command objects in `src/commands/`
+    // implement `CommandMetadata` and have a skill/command template.
+    // The 4 top-level subcommands (Setup, Gate, Status, Archive) are
+    // terminal CLI subcommands and intentionally do NOT implement
+    // `CommandMetadata` — see `.omc/plans/command-metadata-narrow-to-commands.md`.
 
-    // Skills / commands
     assert_populated("New", New.skill_template());
     assert_populated("New", New.command_template());
     assert_populated("Plan", Plan.skill_template());
@@ -125,28 +116,21 @@ fn skill_and_command_schemas_share_metadata_but_differ_in_prompt() {
 
 #[test]
 fn each_command_has_appropriate_tools() {
-    // Sanity: the tool whitelist reflects what the command actually does.
-    assert!(Setup.skill_template().tools.contains(&"Bash"));
-    assert!(Setup.skill_template().tools.contains(&"Write"));
+    // Sanity: the tool whitelist reflects what the Skill / Custom Command
+    // actually does. Only the 6 objects in `src/commands/` are checked.
     assert!(Implement.skill_template().tools.contains(&"Edit"));
     assert!(Implement.skill_template().tools.contains(&"Bash"));
     assert!(Review.skill_template().tools.contains(&"Grep"));
     assert!(Audit.skill_template().tools.contains(&"Read"));
     // Read-only commands should NOT have Write/Edit
-    assert!(!Status.skill_template().tools.contains(&"Write"));
-    assert!(!Gate.skill_template().tools.contains(&"Edit"));
     assert!(!Audit.skill_template().tools.contains(&"Edit"));
 }
 
 #[test]
 fn all_commands_compile_to_valid_claude_markdown() {
-    // Sanity: every command produces a parseable frontmatter + body
-    // when compiled to Claude format.
+    // Sanity: every Skill / Custom Command produces a parseable frontmatter
+    // + body when compiled to Claude format.
     let schemas = [
-        Setup.skill_template(),
-        Gate.skill_template(),
-        Status.skill_template(),
-        Archive.skill_template(),
         New.skill_template(),
         Plan.skill_template(),
         Audit.skill_template(),

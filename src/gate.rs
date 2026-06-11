@@ -1,55 +1,45 @@
+use crate::commands::{Audit, Implement, New, Plan, Review, TryFinish};
 use crate::context::Context;
-use crate::errors::Result;
-use crate::schema::CommandSchema;
+use crate::errors::{ForceLoopError, Result};
+use crate::state::{PipelinePhase, PipelineState};
 use crate::traits::{CommandMetadata, Executable, Subcommand};
-
-const SKILL_PROMPT: &str = "\
-# Gate Control Skill
-
-Verify whether the current pipeline step can advance to the next.
-
-## Behavior
-1. Read `.forceloop/state.json` to determine the current step.
-2. Invoke `gate()` on the active `Command` object.
-3. Emit PASS/FAIL signal to stdout.
-4. On PASS, advance `state.json` to the next phase.
-5. On FAIL, surface the gate reason and stop.
-
-## Invocation
-Called by git hooks (post-commit, pre-push) and the `forceloop gate` CLI subcommand.
-";
-
-const COMMAND_PROMPT: &str = "\
-Gate control — verify the current pipeline step can advance.
-
-Reads `.forceloop/state.json`, calls `gate()` on the active command,
-emits PASS/FAIL. Used by git hooks; rarely invoked manually.
-";
-
-fn gate_skill() -> CommandSchema {
-    CommandSchema {
-        name: "gate",
-        description: "Gate control command, typically invoked by hooks",
-        model: None,
-        argument_hint: None,
-        tools: &["Read"],
-        agent: None,
-        prompt: SKILL_PROMPT,
-    }
-}
-
-fn gate_command() -> CommandSchema {
-    CommandSchema {
-        prompt: COMMAND_PROMPT,
-        ..gate_skill()
-    }
-}
 
 pub struct Gate;
 
 impl Executable for Gate {
-    fn execute(&self, _ctx: &Context) -> Result<()> {
-        todo!()
+    fn execute(&self, ctx: &Context) -> Result<()> {
+        // 1. Locate and read current pipeline state
+        let state_path = PipelineState::locate_state_file()?;
+        let state = PipelineState::read_or_default(&state_path)?;
+
+        if state.current_phase == PipelinePhase::Done {
+            println!("Pipeline: all phases complete (current phase: Done).");
+            return Ok(());
+        }
+
+        // 2. Call gate() on the command corresponding to the current phase.
+        //    The gate verifies that the step has been completed satisfactorily.
+        match state.current_phase {
+            PipelinePhase::New => New.gate(ctx)?,
+            PipelinePhase::Plan => Plan.gate(ctx)?,
+            PipelinePhase::Audit => Audit.gate(ctx)?,
+            PipelinePhase::Implement => Implement.gate(ctx)?,
+            PipelinePhase::Review => Review.gate(ctx)?,
+            PipelinePhase::TryFinish => TryFinish.gate(ctx)?,
+            PipelinePhase::Done => unreachable!(),
+        }
+
+        // 3. Gate passed — advance to next phase
+        let next_phase = state
+            .next_phase()
+            .ok_or_else(|| ForceLoopError::Execution("pipeline already complete".into()))?;
+        let next_state = PipelineState {
+            current_phase: next_phase,
+        };
+        next_state.write(&state_path)?;
+
+        println!("✓ Gate passed: {} → {}", state.current_phase, next_phase);
+        Ok(())
     }
 }
 
@@ -59,20 +49,5 @@ impl Subcommand for Gate {
     }
     fn description(&self) -> &'static str {
         "Gate control command, typically invoked by hooks"
-    }
-}
-
-impl CommandMetadata for Gate {
-    fn skill_template(&self) -> CommandSchema {
-        gate_skill()
-    }
-    fn command_template(&self) -> CommandSchema {
-        gate_command()
-    }
-    fn artifacts(&self) -> &[&'static str] {
-        &[]
-    }
-    fn gate(&self, _ctx: &Context) -> Result<()> {
-        Ok(())
     }
 }

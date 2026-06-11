@@ -13,8 +13,16 @@ pub trait Subcommand: Executable {
     fn description(&self) -> &'static str;
 }
 
-/// Trait for declarative metadata shared by all Command objects.
-/// Provides skill/command templates, artifact file lists, and gating logic.
+/// Trait for declarative metadata of Skill / Custom Command objects.
+///
+/// Only the 6 Command objects in `src/commands/` (New, Plan, Audit,
+/// Implement, Review, TryFinish) implement this trait. The 4 top-level
+/// subcommands (Setup, Gate, Status, Archive) are terminal CLI
+/// subcommands — they are not Skill / Custom Commands and do not have
+/// a `skill_template` / `command_template` of their own.
+///
+/// Provides skill/command templates (compiled to platform-native format
+/// via `crate::compiler::compile`), artifact file lists, and gating logic.
 pub trait CommandMetadata {
     /// Returns the ForceLoop-native Skill schema for this command.
     /// Compile to platform-native format via `crate::compiler::compile`.
