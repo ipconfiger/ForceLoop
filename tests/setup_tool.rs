@@ -40,9 +40,15 @@ fn execute_with_two_targets_preserves_order() {
 fn run_default_writes_both_targets() {
     let tmp = TempDir::new().unwrap();
     let report = run(&default_targets(), tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 12); // 6 commands × 2 targets
+    // 6 commands × 2 targets = 12 command files
+    // + 2 OpenCode hook files (opencode.json + plugin/hook.ts)
+    // = 14 total
+    assert_eq!(report.written.len(), 14);
     assert!(tmp.path().join(".claude/commands/new.md").exists());
     assert!(tmp.path().join(".opencode/command/new.md").exists());
+    // OpenCode hook files
+    assert!(tmp.path().join("opencode.json").exists());
+    assert!(tmp.path().join("plugin/hook.ts").exists());
 }
 
 #[test]
@@ -52,15 +58,28 @@ fn claude_only_writes_claude_dir() {
     assert_eq!(report.written.len(), 6);
     assert!(tmp.path().join(".claude/commands/new.md").exists());
     assert!(!tmp.path().join(".opencode/").exists());
+    // Claude-only must NOT register the OpenCode hook.
+    assert!(
+        !tmp.path().join("opencode.json").exists(),
+        "Claude-only setup must not write opencode.json"
+    );
+    assert!(
+        !tmp.path().join("plugin/").exists(),
+        "Claude-only setup must not create plugin/ directory"
+    );
 }
 
 #[test]
 fn opencode_only_writes_opencode_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::OpenCode], tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 6);
+    // 6 commands + 2 hook files = 8
+    assert_eq!(report.written.len(), 8);
     assert!(tmp.path().join(".opencode/command/new.md").exists());
     assert!(!tmp.path().join(".claude/").exists());
+    // OpenCode-only DOES register the hook.
+    assert!(tmp.path().join("opencode.json").exists());
+    assert!(tmp.path().join("plugin/hook.ts").exists());
 }
 
 #[test]
@@ -193,5 +212,38 @@ fn setup_md_is_not_generated() {
     assert!(
         !tmp.path().join(".opencode/command/setup.md").exists(),
         ".opencode/command/setup.md must not exist"
+    );
+}
+
+#[test]
+fn opencode_hook_files_have_expected_content() {
+    // Validates the content contracts of both hook files:
+    //   - opencode.json is valid JSON pointing to ./plugin/hook.ts
+    //   - plugin/hook.ts references fl gate, session.idle, noReply: false
+    //     and the 60_000 ms timeout
+    // See `.omc/plans/opencode-session-idle-gate-hook.md` for rationale.
+    let tmp = TempDir::new().unwrap();
+    run(&[Target::OpenCode], tmp.path()).unwrap();
+
+    // opencode.json is valid JSON pointing to our plugin
+    let json = fs::read_to_string(tmp.path().join("opencode.json")).unwrap();
+    let v: serde_json::Value =
+        serde_json::from_str(&json).expect("opencode.json must be valid JSON");
+    assert_eq!(v["plugin"][0], "./plugin/hook.ts");
+
+    // plugin/hook.ts contains the key contracts
+    let ts = fs::read_to_string(tmp.path().join("plugin/hook.ts")).unwrap();
+    assert!(ts.contains("fl gate"), "hook must call `fl gate`");
+    assert!(
+        ts.contains("session.idle"),
+        "hook must filter on session.idle"
+    );
+    assert!(
+        ts.contains("noReply: false"),
+        "hook must set noReply: false to trigger AI auto-reply"
+    );
+    assert!(
+        ts.contains(".timeout(60_000)"),
+        "hook must use 60s timeout per reference doc"
     );
 }

@@ -99,8 +99,65 @@ pub fn run(targets: &[Target], root: &Path) -> Result<SetupReport> {
             fs::write(&path, body)?;
             written.push(path);
         }
+        // OpenCode additionally gets a project-level hook so that
+        // `session.idle` automatically invokes `fl gate`. See
+        // `.omc/plans/opencode-session-idle-gate-hook.md`.
+        if target == Target::OpenCode {
+            write_opencode_hook(root, &mut written)?;
+        }
     }
     Ok(SetupReport { written })
+}
+
+/// Project-level OpenCode config that registers our `plugin/hook.ts`.
+///
+/// Output: `<root>/opencode.json`
+///
+/// The file tells OpenCode to load the TypeScript plugin at
+/// `./plugin/hook.ts` (relative to the directory containing
+/// `opencode.json`, i.e. the project root). Per reference doc:
+/// `opencode-auto-state-driver.md`.
+fn opencode_json_content() -> &'static str {
+    "{\n  \"plugin\": [\"./plugin/hook.ts\"]\n}\n"
+}
+
+/// OpenCode TypeScript plugin that calls `fl gate` on `session.idle`.
+///
+/// Output: `<root>/plugin/hook.ts`
+///
+/// Behavior (per reference doc):
+/// - On `session.idle`, run `fl gate` with a 60-second timeout
+/// - Exit 0: silent pass
+/// - Exit != 0: inject stdout+stderr into the session as a prompt
+///   with `noReply: false` to trigger the AI's auto-reply / fix loop
+///
+/// The actual TypeScript source lives at `plugin/hook.ts` in the
+/// project root, embedded at compile time via `include_str!` so the
+/// file is editable in-place and the binary has zero runtime cost.
+fn plugin_hook_ts_content() -> &'static str {
+    include_str!("../plugin/hook.ts")
+}
+
+/// Write the 2 OpenCode project-level hook files to `root`:
+///   - `<root>/opencode.json`
+///   - `<root>/plugin/hook.ts`
+///
+/// Both paths are pushed into `written` for the `SetupReport`.
+///
+/// Idempotent: re-running overwrites both files (matches the
+/// `fs::write` semantics used for command files).
+fn write_opencode_hook(root: &Path, written: &mut Vec<PathBuf>) -> Result<()> {
+    let json_path = root.join("opencode.json");
+    fs::write(&json_path, opencode_json_content())?;
+    written.push(json_path);
+
+    let plugin_dir = root.join("plugin");
+    fs::create_dir_all(&plugin_dir)?;
+    let ts_path = plugin_dir.join("hook.ts");
+    fs::write(&ts_path, plugin_hook_ts_content())?;
+    written.push(ts_path);
+
+    Ok(())
 }
 
 fn target_subdir(root: &Path, target: Target) -> PathBuf {
@@ -169,5 +226,70 @@ mod tests {
         // The 6-file invariant in `run()` tests (see `tests/setup_tool.rs`)
         // depends on this count.
         assert_eq!(COMMANDS.len(), 6);
+    }
+
+    // ----------------------------------------------------------------
+    // OpenCode hook content contracts — see
+    // `.omc/plans/opencode-session-idle-gate-hook.md`.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn opencode_json_has_plugin_entry() {
+        let s = opencode_json_content();
+        // Must be valid JSON.
+        let v: serde_json::Value =
+            serde_json::from_str(s).expect("opencode.json content must be valid JSON");
+        let plugins = v
+            .get("plugin")
+            .and_then(|p| p.as_array())
+            .expect("plugin must be a JSON array");
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0], "./plugin/hook.ts");
+    }
+
+    #[test]
+    fn plugin_hook_ts_uses_fl_gate() {
+        // Replaces the doc's `./check.sh` placeholder with the actual
+        // `fl gate` invocation. This is the core of the integration.
+        let s = plugin_hook_ts_content();
+        assert!(s.contains("fl gate"), "must call `fl gate`");
+        assert!(
+            !s.contains("./check.sh"),
+            "doc placeholder must be replaced; found `./check.sh`"
+        );
+    }
+
+    #[test]
+    fn plugin_hook_ts_filters_session_idle() {
+        let s = plugin_hook_ts_content();
+        assert!(
+            s.contains("session.idle"),
+            "must filter on session.idle event"
+        );
+        assert!(s.contains("event.type"), "must inspect event.type");
+    }
+
+    #[test]
+    fn plugin_hook_ts_prompts_on_nonzero_exit() {
+        let s = plugin_hook_ts_content();
+        assert!(s.contains("exitCode"), "must inspect result.exitCode");
+        assert!(
+            s.contains("client.session.prompt"),
+            "must call client.session.prompt on non-zero exit"
+        );
+        assert!(
+            s.contains("noReply: false"),
+            "noReply: false triggers AI auto-reply / fix loop"
+        );
+    }
+
+    #[test]
+    fn plugin_hook_ts_has_timeout() {
+        let s = plugin_hook_ts_content();
+        assert!(
+            s.contains(".timeout("),
+            "must use BunShell $.timeout() to bound gate execution"
+        );
+        assert!(s.contains("60_000"), "default 60s timeout per reference doc");
     }
 }
