@@ -133,7 +133,7 @@ These are registered as slash commands on each platform and invoked by the AI:
 | `fl plan` | `/fl-plan` | Create plans directory scaffold |
 | `fl audit` | `/fl-audit` | Verify specs and plans are consistent |
 | `fl implement` | `/fl-implement` | Execute TDD wave by wave |
-| `fl review` | `/fl-review` | Full regression check + metis review |
+| `fl review` | `/fl-review` | 7-dimension regression cross-verification |
 
 ### Gate error messages
 
