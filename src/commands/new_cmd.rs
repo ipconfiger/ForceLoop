@@ -2,7 +2,7 @@ use std::fs;
 
 use crate::constants::{SPECS_DIR, SPECS_INDEX};
 use crate::context::Context;
-use crate::errors::Result;
+use crate::errors::{ForceLoopError, Result};
 use crate::schema::CommandSchema;
 use crate::state::{verify_artifact, PipelineState};
 use crate::traits::{CommandMetadata, Executable, Subcommand};
@@ -125,8 +125,14 @@ impl CommandMetadata for New {
         &[".forceloop/specs/index.md"]
     }
     fn gate(&self, _ctx: &Context) -> Result<()> {
-    let forceloop_dir = PipelineState::locate_forceloop_dir()?;
-    let index_path = forceloop_dir.join(SPECS_INDEX);
-    verify_artifact(&index_path)
-}
+        let forceloop_dir = PipelineState::locate_forceloop_dir()?;
+        let index_path = forceloop_dir.join(SPECS_INDEX);
+        verify_artifact(&index_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Spec generation verification failed. Review the files under specs/ \
+                 directory and regenerate if needed."
+                    .into(),
+            )
+        })
+    }
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use crate::constants::{PLANS_DIR, PLANS_INDEX, WAVE_STATE};
 use crate::context::Context;
-use crate::errors::Result;
+use crate::errors::{ForceLoopError, Result};
 use crate::schema::CommandSchema;
 use crate::state::{verify_artifact, PipelineState};
 use crate::traits::{CommandMetadata, Executable, Subcommand};
@@ -182,7 +182,13 @@ impl CommandMetadata for Plan {
         let index_path = forceloop_dir.join(PLANS_INDEX);
 
         // 1. Verify artifact (plans/index.md) exists with valid wiki links.
-        verify_artifact(&index_path)?;
+        verify_artifact(&index_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Plan generation incomplete. Cross-review the files under specs/ \
+                 and plans/ directories."
+                    .into(),
+            )
+        })?;
 
         // 2. Auto-generate wave_state.md from all wave files.
         //    Each wave file's checklist items become entries in wave_state.md,

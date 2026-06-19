@@ -140,10 +140,22 @@ impl CommandMetadata for Implement {
         let wave_path = forceloop_dir.join(WAVE_STATE);
 
         // 1. Verify artifact exists and wiki links are valid.
-        verify_artifact(&wave_path)?;
+        verify_artifact(&wave_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Implementation verification failed. Review wave_state.md and \
+                 re-run the current wave's development tasks."
+                    .into(),
+            )
+        })?;
 
         // 2. Verify all checklist items in wave_state.md are completed.
-        verify_checklist(&wave_path)?;
+        verify_checklist(&wave_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Implementation verification failed. Re-run the current wave's \
+                 development tasks."
+                    .into(),
+            )
+        })?;
 
         // 3. Cross-verify against actual plan files: count the number of
         //    wave FILES in .forceloop/plans/ and compare with completed
@@ -156,8 +168,9 @@ impl CommandMetadata for Implement {
             if completed_wave_items < total_wave_files {
                 let remaining = total_wave_files - completed_wave_items;
                 return Err(ForceLoopError::Execution(format!(
-                    "Gate blocked: {remaining} wave(s) not yet completed. \
-                     Run `/fl-implement` to continue."
+                    "Implementation verification failed: {remaining} wave(s) \
+                     not yet completed. Re-run the current wave's development \
+                     tasks."
                 )));
             }
         }

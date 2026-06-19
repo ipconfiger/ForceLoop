@@ -44,9 +44,11 @@ fn run_default_writes_all_targets() {
     let tmp = TempDir::new().unwrap();
     let report = run(&default_targets(), tmp.path()).unwrap();
     // 5 commands × 3 targets = 15 command files
-    // + 1 OpenCode hook + 1 omp hook = 17 total
-    assert_eq!(report.written.len(), 17);
+    // + 1 OpenCode hook + 1 omp hook + 2 Claude hook files = 19 total
+    assert_eq!(report.written.len(), 19);
     assert!(tmp.path().join(".claude/commands/fl-new.md").exists());
+    assert!(tmp.path().join(".claude/hooks/fl-gate.sh").exists());
+    assert!(tmp.path().join(".claude/settings.json").exists());
     assert!(tmp.path().join(".opencode/command/fl-new.md").exists());
     assert!(tmp.path().join(".omp/commands/fl-new.md").exists());
     // OpenCode hook files (plugin auto-loaded from .opencode/plugins/).
@@ -60,8 +62,11 @@ fn run_default_writes_all_targets() {
 fn claude_only_writes_claude_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::Claude], tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 5);
+    // 5 commands + 1 hook script + 1 settings.json = 7
+    assert_eq!(report.written.len(), 7);
     assert!(tmp.path().join(".claude/commands/fl-new.md").exists());
+    assert!(tmp.path().join(".claude/hooks/fl-gate.sh").exists());
+    assert!(tmp.path().join(".claude/settings.json").exists());
     // Claude-only target must NOT touch any OpenCode directory.
     assert!(
         !tmp.path().join(".opencode/").exists(),
@@ -186,6 +191,8 @@ fn run_writes_all_five_commands_per_target() {
         "fl-audit.md",
         "fl-implement.md",
         "fl-review.md",
+        "fl-gate.sh",
+        "settings.json",
     ]
     .iter()
     .map(|s| s.to_string())

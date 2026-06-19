@@ -127,9 +127,19 @@ impl CommandMetadata for Review {
         let result_path = forceloop_dir.join(REVIEW_RESULT);
 
         // 1. Verify artifact exists and wiki links are valid.
-        verify_artifact(&result_path)?;
+        verify_artifact(&result_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Code review report verification failed. Re-run the review."
+                    .into(),
+            )
+        })?;
 
         // 2. Verify all checklist items are completed.
-        verify_checklist(&result_path)
+        verify_checklist(&result_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Code review report verification failed. Re-run the review."
+                    .into(),
+            )
+        })
     }
 }

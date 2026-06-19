@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use serde_json::{json, Value};
 
 use crate::commands::{Audit, Implement, New, Plan, Review};
@@ -110,6 +113,13 @@ pub fn run(targets: &[Target], root: &Path) -> Result<SetupReport> {
         // oh-my-pi additionally gets a session_stop hook.
         if target == Target::OhMyPi {
             write_omp_hook(root, &mut written)?;
+        }
+        // Claude Code additionally gets a Stop hook so that `fl gate`
+        // runs after each response. Non-zero exit feeds stderr to
+        // Claude for the auto-fix loop. See
+        // `.omc/plans/add-claude-stop-hook.md`.
+        if target == Target::Claude {
+            write_claude_hook(root, &mut written)?;
         }
     }
     Ok(SetupReport { written })
@@ -256,6 +266,98 @@ fn write_omp_hook(root: &Path, written: &mut Vec<PathBuf>) -> Result<()> {
     let ts_path = hooks_dir.join("fl-gate.ts");
     fs::write(&ts_path, omp_hook_ts_content())?;
     written.push(ts_path);
+    Ok(())
+}
+
+/// Claude Code shell script that calls `fl gate` on the `Stop` event.
+///
+/// Output: `<root>/.claude/hooks/fl-gate.sh`
+///
+/// Claude Code's `Stop` hook fires after each response.
+/// - Exit 0: silent pass
+/// - Exit 2: blocking error — stderr is fed to Claude as error message,
+///   triggering the AI's auto-fix loop.
+///
+/// The wrapper converts `fl gate`'s exit 1 into exit 2 so that Claude
+/// Code treats it as a blocking error and feeds stderr to the AI.
+///
+/// The actual shell source lives at `plugin/claude-hook.sh` in the
+/// project root, embedded at compile time via `include_str!`.
+fn claude_hook_sh_content() -> &'static str {
+    include_str!("../plugin/claude-hook.sh")
+}
+
+/// Write the Claude Code project-level hook files to `root`:
+///   - `<root>/.claude/hooks/fl-gate.sh` (wrapper script)
+///   - `<root>/.claude/settings.json` (merged, Stop hook entry)
+fn write_claude_hook(root: &Path, written: &mut Vec<PathBuf>) -> Result<()> {
+    // Write wrapper script
+    let hooks_dir = root.join(".claude/hooks");
+    fs::create_dir_all(&hooks_dir)?;
+    let script_path = hooks_dir.join("fl-gate.sh");
+    fs::write(&script_path, claude_hook_sh_content())?;
+    // Make script executable
+    #[cfg(unix)]
+    {
+        let mut perms = fs::metadata(&script_path)?.permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&script_path, perms)?;
+    }
+    written.push(script_path);
+
+    // Merge .claude/settings.json with Stop hook entry
+    let settings_path = root.join(".claude/settings.json");
+    merge_claude_settings(&settings_path)?;
+    written.push(settings_path);
+    Ok(())
+}
+
+/// Merge a `Stop` hook entry into `.claude/settings.json`.
+///
+/// Contract:
+/// - File absent → write settings with Stop hook entry.
+/// - File present, valid JSON → add/update `hooks.Stop`, preserve all
+///   other keys. If `hooks.Stop` already exists → no change (idempotent).
+/// - File present, malformed JSON → `Parse` error.
+fn merge_claude_settings(settings_path: &Path) -> Result<()> {
+    if let Some(parent) = settings_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut root: Value = if settings_path.exists() {
+        let s = fs::read_to_string(settings_path)?;
+        serde_json::from_str(&s)
+            .map_err(|e| ForceLoopError::Parse(format!(".claude/settings.json: {e}")))?
+    } else {
+        json!({})
+    };
+
+    let stop_hook = json!([{
+        "hooks": [{
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/fl-gate.sh",
+            "timeout": 60,
+            "statusMessage": "Running gate check..."
+        }]
+    }]);
+
+    // Navigate or create `hooks` object
+    if let Some(hooks) = root.get("hooks") {
+        if hooks.get("Stop").is_none()
+            && let Some(hooks_obj) = root.as_object_mut()
+            && let Some(hooks_map) = hooks_obj.get_mut("hooks").and_then(|h| h.as_object_mut())
+        {
+            hooks_map.insert("Stop".to_string(), stop_hook);
+        }
+    } else if let Some(obj) = root.as_object_mut() {
+        let mut hooks = serde_json::Map::new();
+        hooks.insert("Stop".to_string(), stop_hook);
+        obj.insert("hooks".to_string(), Value::Object(hooks));
+    }
+
+    let pretty = serde_json::to_string_pretty(&root)
+        .map_err(|e| ForceLoopError::Parse(format!(".claude/settings.json: {e}")))?;
+    fs::write(settings_path, format!("{pretty}\n"))?;
     Ok(())
 }
 
@@ -476,6 +578,68 @@ mod tests {
             s.contains("@oh-my-pi/pi-coding-agent"),
             "must import from @oh-my-pi/pi-coding-agent"
         );
+    }
+
+    // ----------------------------------------------------------------
+    // Claude Code hook content contracts — see
+    // `.omc/plans/add-claude-stop-hook.md`.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn claude_hook_sh_uses_fl_gate() {
+        let s = claude_hook_sh_content();
+        assert!(s.contains("fl gate"), "script must call `fl gate`");
+    }
+
+    #[test]
+    fn claude_hook_sh_exits_with_2_on_failure() {
+        let s = claude_hook_sh_content();
+        assert!(
+            s.contains("exit 2"),
+            "script must exit with code 2 on failure"
+        );
+    }
+
+    #[test]
+    fn claude_hook_sh_has_shell_shebang() {
+        let s = claude_hook_sh_content();
+        assert!(s.starts_with("#!/bin/bash"), "must have bash shebang");
+        assert!(s.contains("set -euo pipefail"), "must use strict mode");
+    }
+
+    #[test]
+    fn merge_claude_settings_initial() {
+        let tmp = TempDir::new().unwrap();
+        let settings_path = tmp.path().join(".claude/settings.json");
+        merge_claude_settings(&settings_path).unwrap();
+
+        let v = read_json(&settings_path);
+        let stop = v
+            .get("hooks")
+            .and_then(|h| h.get("Stop"))
+            .and_then(|s| s.as_array());
+        assert!(stop.is_some(), "Stop hook must be present");
+        assert_eq!(stop.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn merge_claude_settings_preserves_existing() {
+        let tmp = TempDir::new().unwrap();
+        let settings_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&settings_dir).unwrap();
+        let settings_path = settings_dir.join("settings.json");
+        fs::write(
+            &settings_path,
+            r#"{"disableAllHooks":false,"otherSetting":"value"}"#,
+        )
+        .unwrap();
+
+        merge_claude_settings(&settings_path).unwrap();
+
+        let v = read_json(&settings_path);
+        assert_eq!(v["disableAllHooks"], false);
+        assert_eq!(v["otherSetting"], "value");
+        assert!(v.get("hooks").and_then(|h| h.get("Stop")).is_some());
     }
 
     // ----------------------------------------------------------------

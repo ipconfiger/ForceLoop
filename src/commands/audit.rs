@@ -132,9 +132,17 @@ impl CommandMetadata for Audit {
         let report_path = forceloop_dir.join(AUDIT_FILE);
 
         // 1. Verify artifact exists and wiki links are valid.
-        verify_artifact(&report_path)?;
+        verify_artifact(&report_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Audit report incomplete. Re-run the audit.".into(),
+            )
+        })?;
 
         // 2. Verify all checklist items are completed.
-        verify_checklist(&report_path)
+        verify_checklist(&report_path).map_err(|_| {
+            ForceLoopError::Execution(
+                "Audit report incomplete. Re-run the audit.".into(),
+            )
+        })
     }
 }
