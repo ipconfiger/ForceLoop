@@ -111,20 +111,32 @@
     },
     {
       "path": "src/state.rs",
-      "accessCount": 18,
-      "lastAccessed": 1781867421196,
+      "accessCount": 19,
+      "lastAccessed": 1781874131739,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/implement.rs",
+      "accessCount": 15,
+      "lastAccessed": 1781877357259,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/review.rs",
+      "accessCount": 12,
+      "lastAccessed": 1781877476730,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/plan.rs",
+      "accessCount": 10,
+      "lastAccessed": 1781874589771,
       "type": "file"
     },
     {
       "path": "CLAUDE.md",
       "accessCount": 9,
       "lastAccessed": 1781845003571,
-      "type": "file"
-    },
-    {
-      "path": "src/commands/implement.rs",
-      "accessCount": 9,
-      "lastAccessed": 1781867821152,
       "type": "file"
     },
     {
@@ -135,26 +147,38 @@
     },
     {
       "path": "src/gate.rs",
-      "accessCount": 7,
-      "lastAccessed": 1781867230623,
+      "accessCount": 8,
+      "lastAccessed": 1781874132124,
       "type": "file"
     },
     {
-      "path": "src/commands/plan.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781867967243,
+      "path": "src/commands/audit.rs",
+      "accessCount": 8,
+      "lastAccessed": 1781874745409,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/new_cmd.rs",
+      "accessCount": 7,
+      "lastAccessed": 1781874534958,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 7,
+      "lastAccessed": 1781877544357,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 7,
+      "lastAccessed": 1781877703947,
       "type": "file"
     },
     {
       "path": "src/cli.rs",
       "accessCount": 6,
       "lastAccessed": 1781870533659,
-      "type": "file"
-    },
-    {
-      "path": "Cargo.toml",
-      "accessCount": 6,
-      "lastAccessed": 1781870698478,
       "type": "file"
     },
     {
@@ -170,33 +194,9 @@
       "type": "file"
     },
     {
-      "path": "src/commands/review.rs",
-      "accessCount": 5,
-      "lastAccessed": 1781867823316,
-      "type": "file"
-    },
-    {
       "path": "plugin/omp-fl-gate.ts",
       "accessCount": 4,
       "lastAccessed": 1781858394640,
-      "type": "file"
-    },
-    {
-      "path": "src/commands/audit.rs",
-      "accessCount": 4,
-      "lastAccessed": 1781867814174,
-      "type": "file"
-    },
-    {
-      "path": "src/commands/new_cmd.rs",
-      "accessCount": 4,
-      "lastAccessed": 1781867966042,
-      "type": "file"
-    },
-    {
-      "path": "README.md",
-      "accessCount": 4,
-      "lastAccessed": 1781871537131,
       "type": "file"
     },
     {
@@ -230,21 +230,33 @@
       "type": "file"
     },
     {
+      "path": "src/constants.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781874132211,
+      "type": "file"
+    },
+    {
       "path": "src/commands/try_finish.rs",
       "accessCount": 2,
       "lastAccessed": 1781844250745,
       "type": "file"
     },
     {
-      "path": "src/constants.rs",
-      "accessCount": 2,
-      "lastAccessed": 1781846231991,
-      "type": "file"
-    },
-    {
       "path": "src/utils.rs",
       "accessCount": 2,
       "lastAccessed": 1781867248242,
+      "type": "file"
+    },
+    {
+      "path": "docs/requirment.md",
+      "accessCount": 2,
+      "lastAccessed": 1781874131563,
+      "type": "file"
+    },
+    {
+      "path": ".sisyphus/plans/cli-framework.md",
+      "accessCount": 2,
+      "lastAccessed": 1781876368258,
       "type": "file"
     },
     {
@@ -278,21 +290,9 @@
       "type": "file"
     },
     {
-      "path": "docs/requirment.md",
-      "accessCount": 1,
-      "lastAccessed": 1781858633462,
-      "type": "file"
-    },
-    {
       "path": "plugin/claude-hook.sh",
       "accessCount": 1,
       "lastAccessed": 1781859348003,
-      "type": "file"
-    },
-    {
-      "path": ".sisyphus/plans/cli-framework.md",
-      "accessCount": 1,
-      "lastAccessed": 1781870533301,
       "type": "file"
     }
   ],
