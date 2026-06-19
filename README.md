@@ -6,7 +6,7 @@ ForceLoop imposes a lightweight pipeline — New → Plan → Audit → Implemen
 [![Crates.io][crates-badge]](https://crates.io/crates/forceloop)
 [![MIT licensed][mit-badge]](LICENSE)
 
-[crates-badge]: https://img.shields.io/badge/crates.io-unreleased-red
+[crates-badge]: https://img.shields.io/crates/v/forceloop
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue
 
 ---
@@ -26,6 +26,12 @@ ForceLoop imposes a lightweight pipeline — New → Plan → Audit → Implemen
 ---
 
 ## Installation
+
+### From crates.io
+
+```bash
+cargo install forceloop
+```
 
 ### From source
 
