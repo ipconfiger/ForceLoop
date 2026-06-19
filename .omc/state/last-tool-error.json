@@ -1,7 +1,7 @@
 {
-  "tool_name": "WebFetch",
-  "tool_input_preview": "{\"url\":\"file:///Users/alex/Projects/testspace/todo_test1/docs/omp-hook-porting.html\",\"prompt\":\"Extract the complete content of this HTML document. I need every detail about oh-my-pi hook porting, incl...",
-  "error": "Invalid URL",
-  "timestamp": "2026-06-19T06:35:09.231Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cargo publish --registry crates-io --allow-dirty 2>&1\",\"timeout\":300000,\"description\":\"Publish to crates.io\"}",
+  "error": "Exit code 101\n    Updating crates.io index\n   Packaging forceloop v0.1.0 (/Users/alex/Projects/workspace/ForceLoop)\n    Updating `rsproxy-sparse` index\n    Packaged 94 files, 607.9KiB (169.8KiB compressed)\n   Verifying forceloop v0.1.0 (/Users/alex/Projects/workspace/ForceLoop)\n   Compiling forceloop v0.1.0 (/Users/alex/.cargo/global-target/package/forceloop-0.1.0)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.41s\n   Uploading forceloop v0.1.0 (/Users/alex/Projects/workspac...",
+  "timestamp": "2026-06-19T12:12:10.204Z",
   "retry_count": 1
 }

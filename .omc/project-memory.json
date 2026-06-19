@@ -92,33 +92,39 @@
   },
   "hotPaths": [
     {
+      "path": "src/setup.rs",
+      "accessCount": 40,
+      "lastAccessed": 1781860550369,
+      "type": "file"
+    },
+    {
       "path": "src/archive.rs",
       "accessCount": 30,
       "lastAccessed": 1781849509282,
       "type": "file"
     },
     {
-      "path": "src/setup.rs",
-      "accessCount": 25,
-      "lastAccessed": 1781853113269,
-      "type": "file"
-    },
-    {
       "path": "tests/setup_tool.rs",
-      "accessCount": 19,
-      "lastAccessed": 1781853152614,
+      "accessCount": 26,
+      "lastAccessed": 1781859870403,
       "type": "file"
     },
     {
       "path": "src/state.rs",
-      "accessCount": 16,
-      "lastAccessed": 1781846246053,
+      "accessCount": 18,
+      "lastAccessed": 1781867421196,
       "type": "file"
     },
     {
       "path": "CLAUDE.md",
       "accessCount": 9,
       "lastAccessed": 1781845003571,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/implement.rs",
+      "accessCount": 9,
+      "lastAccessed": 1781867821152,
       "type": "file"
     },
     {
@@ -129,14 +135,26 @@
     },
     {
       "path": "src/gate.rs",
-      "accessCount": 6,
-      "lastAccessed": 1781844458421,
+      "accessCount": 7,
+      "lastAccessed": 1781867230623,
       "type": "file"
     },
     {
-      "path": "src/commands/implement.rs",
-      "accessCount": 5,
-      "lastAccessed": 1781840536135,
+      "path": "src/commands/plan.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781867967243,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781870533659,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 6,
+      "lastAccessed": 1781870698478,
       "type": "file"
     },
     {
@@ -146,15 +164,39 @@
       "type": "file"
     },
     {
-      "path": "src/cli.rs",
+      "path": "src/traits.rs",
       "accessCount": 5,
-      "lastAccessed": 1781851510530,
+      "lastAccessed": 1781867235705,
       "type": "file"
     },
     {
-      "path": "src/traits.rs",
+      "path": "src/commands/review.rs",
+      "accessCount": 5,
+      "lastAccessed": 1781867823316,
+      "type": "file"
+    },
+    {
+      "path": "plugin/omp-fl-gate.ts",
       "accessCount": 4,
-      "lastAccessed": 1781846232503,
+      "lastAccessed": 1781858394640,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/audit.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781867814174,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/new_cmd.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781867966042,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 4,
+      "lastAccessed": 1781871537131,
       "type": "file"
     },
     {
@@ -170,9 +212,21 @@
       "type": "file"
     },
     {
-      "path": "plugin/omp-fl-gate.ts",
+      "path": "plugin/fl.ts",
       "accessCount": 3,
-      "lastAccessed": 1781853105424,
+      "lastAccessed": 1781858515896,
+      "type": "file"
+    },
+    {
+      "path": "src/errors.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781867248754,
+      "type": "file"
+    },
+    {
+      "path": "src/main.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781870526726,
       "type": "file"
     },
     {
@@ -182,45 +236,15 @@
       "type": "file"
     },
     {
-      "path": "src/main.rs",
-      "accessCount": 2,
-      "lastAccessed": 1781844251997,
-      "type": "file"
-    },
-    {
       "path": "src/constants.rs",
       "accessCount": 2,
       "lastAccessed": 1781846231991,
       "type": "file"
     },
     {
-      "path": "src/errors.rs",
+      "path": "src/utils.rs",
       "accessCount": 2,
-      "lastAccessed": 1781846246148,
-      "type": "file"
-    },
-    {
-      "path": "Cargo.toml",
-      "accessCount": 2,
-      "lastAccessed": 1781846468303,
-      "type": "file"
-    },
-    {
-      "path": "src/commands/plan.rs",
-      "accessCount": 1,
-      "lastAccessed": 1781840393267,
-      "type": "file"
-    },
-    {
-      "path": "plugin/fl.ts",
-      "accessCount": 1,
-      "lastAccessed": 1781840727658,
-      "type": "file"
-    },
-    {
-      "path": "src/commands/review.rs",
-      "accessCount": 1,
-      "lastAccessed": 1781844250848,
+      "lastAccessed": 1781867248242,
       "type": "file"
     },
     {
@@ -236,9 +260,39 @@
       "type": "file"
     },
     {
-      "path": "src/utils.rs",
+      "path": ".claude/settings.local.json",
       "accessCount": 1,
-      "lastAccessed": 1781846258490,
+      "lastAccessed": 1781858394340,
+      "type": "file"
+    },
+    {
+      "path": "docs/opencode-hook-spec-correction.md",
+      "accessCount": 1,
+      "lastAccessed": 1781858399229,
+      "type": "file"
+    },
+    {
+      "path": "docs/command-format-comparison.html",
+      "accessCount": 1,
+      "lastAccessed": 1781858399322,
+      "type": "file"
+    },
+    {
+      "path": "docs/requirment.md",
+      "accessCount": 1,
+      "lastAccessed": 1781858633462,
+      "type": "file"
+    },
+    {
+      "path": "plugin/claude-hook.sh",
+      "accessCount": 1,
+      "lastAccessed": 1781859348003,
+      "type": "file"
+    },
+    {
+      "path": ".sisyphus/plans/cli-framework.md",
+      "accessCount": 1,
+      "lastAccessed": 1781870533301,
       "type": "file"
     }
   ],
