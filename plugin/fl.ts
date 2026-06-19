@@ -1,32 +1,36 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin } from "@opencode-ai/plugin"
 
-export default (async (ctx) => {
-  const { client, $ } = ctx;
+// ForceLoop `fl gate` auto-driver for OpenCode.
+//
+// Behavior:
+// - On `session.idle`, run `fl gate` with a 60-second timeout.
+// - Exit 0: silent pass, no AI intervention.
+// - Exit != 0: re-inject stdout+stderr as a prompt into the session
+//   with `noReply: false` to trigger the AI's auto-reply / fix loop.
+//
+// Source of truth for OpenCode plugin API:
+//   https://opencode.ai/docs/plugins/
 
+export const FlGateHook: Plugin = async ({ client, $ }) => {
   return {
     event: async ({ event }) => {
       if (event.type !== "session.idle") return;
 
-      const sessionID = event.properties.sessionID;
+      const sessionID = event.properties?.sessionID;
+      if (!sessionID) return;
 
-      // Call fl gate; on failure, inject output back to AI as prompt.
-      const result = await $`fl gate`.timeout(60_000);
+      const result = await $`fl gate`.nothrow();
 
       if (result.exitCode !== 0) {
-        // Non-zero exit → re-inject stdout+stderr as prompt so the
-        // AI can see the gate reason and auto-fix.
-        client.session.prompt({
+        const text = (result.stdout?.toString() ?? "") + (result.stderr?.toString() ?? "");
+        await client.session.prompt({
           path: { id: sessionID },
           body: {
             noReply: false,
-            parts: [{
-              type: "text",
-              text: result.stdout + result.stderr,
-            }],
+            parts: [{ type: "text", text }],
           },
         });
       }
-      // Exit 0: silent pass, no AI intervention.
     },
   };
-}) satisfies Plugin;
+};

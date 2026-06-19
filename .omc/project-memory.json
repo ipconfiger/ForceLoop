@@ -1,0 +1,246 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1781840278856,
+  "projectRoot": "/Users/alex/Projects/workspace/ForceLoop",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Rust",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Cargo.toml"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "cargo",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "cargo build",
+    "testCommand": "cargo test",
+    "lintCommand": "cargo clippy",
+    "devCommand": "cargo run",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 3,
+      "lastAccessed": 1781840278626,
+      "keyFiles": [
+        "command-format-comparison.html",
+        "opencode-hook-spec-correction.md",
+        "requirment.md"
+      ]
+    },
+    "plugin": {
+      "path": "plugin",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1781840278626,
+      "keyFiles": [
+        "fl.ts"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 16,
+      "lastAccessed": 1781840278626,
+      "keyFiles": [
+        "archive.rs",
+        "cli.rs",
+        "compiler.rs",
+        "constants.rs",
+        "context.rs"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 3,
+      "lastAccessed": 1781840278626,
+      "keyFiles": [
+        "cli_help.rs",
+        "command_compile.rs",
+        "setup_tool.rs"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/archive.rs",
+      "accessCount": 30,
+      "lastAccessed": 1781849509282,
+      "type": "file"
+    },
+    {
+      "path": "src/setup.rs",
+      "accessCount": 25,
+      "lastAccessed": 1781853113269,
+      "type": "file"
+    },
+    {
+      "path": "tests/setup_tool.rs",
+      "accessCount": 19,
+      "lastAccessed": 1781853152614,
+      "type": "file"
+    },
+    {
+      "path": "src/state.rs",
+      "accessCount": 16,
+      "lastAccessed": 1781846246053,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 9,
+      "lastAccessed": 1781845003571,
+      "type": "file"
+    },
+    {
+      "path": "tests/command_compile.rs",
+      "accessCount": 8,
+      "lastAccessed": 1781845143068,
+      "type": "file"
+    },
+    {
+      "path": "src/gate.rs",
+      "accessCount": 6,
+      "lastAccessed": 1781844458421,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/implement.rs",
+      "accessCount": 5,
+      "lastAccessed": 1781840536135,
+      "type": "file"
+    },
+    {
+      "path": "AGENTS.md",
+      "accessCount": 5,
+      "lastAccessed": 1781845009152,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.rs",
+      "accessCount": 5,
+      "lastAccessed": 1781851510530,
+      "type": "file"
+    },
+    {
+      "path": "src/traits.rs",
+      "accessCount": 4,
+      "lastAccessed": 1781846232503,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/mod.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781844605054,
+      "type": "file"
+    },
+    {
+      "path": "src/compiler.rs",
+      "accessCount": 3,
+      "lastAccessed": 1781851439183,
+      "type": "file"
+    },
+    {
+      "path": "plugin/omp-fl-gate.ts",
+      "accessCount": 3,
+      "lastAccessed": 1781853105424,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/try_finish.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781844250745,
+      "type": "file"
+    },
+    {
+      "path": "src/main.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781844251997,
+      "type": "file"
+    },
+    {
+      "path": "src/constants.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781846231991,
+      "type": "file"
+    },
+    {
+      "path": "src/errors.rs",
+      "accessCount": 2,
+      "lastAccessed": 1781846246148,
+      "type": "file"
+    },
+    {
+      "path": "Cargo.toml",
+      "accessCount": 2,
+      "lastAccessed": 1781846468303,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/plan.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781840393267,
+      "type": "file"
+    },
+    {
+      "path": "plugin/fl.ts",
+      "accessCount": 1,
+      "lastAccessed": 1781840727658,
+      "type": "file"
+    },
+    {
+      "path": "src/commands/review.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781844250848,
+      "type": "file"
+    },
+    {
+      "path": "src/lib.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781844251580,
+      "type": "file"
+    },
+    {
+      "path": "src/status.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781846251133,
+      "type": "file"
+    },
+    {
+      "path": "src/utils.rs",
+      "accessCount": 1,
+      "lastAccessed": 1781846258490,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

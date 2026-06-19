@@ -15,8 +15,8 @@ pub trait Subcommand: Executable {
 
 /// Trait for declarative metadata of Skill / Custom Command objects.
 ///
-/// Only the 6 Command objects in `src/commands/` (New, Plan, Audit,
-/// Implement, Review, TryFinish) implement this trait. The 4 top-level
+/// Only the 5 Command objects in `src/commands/` (New, Plan, Audit,
+/// Implement, Review) implement this trait. The 4 top-level
 /// subcommands (Setup, Gate, Status, Archive) are terminal CLI
 /// subcommands — they are not Skill / Custom Commands and do not have
 /// a `skill_template` / `command_template` of their own.
@@ -38,4 +38,10 @@ pub trait CommandMetadata {
     /// Gate method: verifies whether the next step in the pipeline can proceed.
     /// Skeleton implementation returns Ok(()).
     fn gate(&self, ctx: &Context) -> Result<()>;
+
+    /// Whether gate validation should also check that all markdown checklist
+    /// items (`- [ ]`) are completed (`- [x]` / `- [✅]`).
+    fn check_list(&self) -> bool {
+        false
+    }
 }

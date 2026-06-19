@@ -1,4 +1,4 @@
-use forceloop::commands::{Audit, Implement, New, Plan, Review, TryFinish};
+use forceloop::commands::{Audit, Implement, New, Plan, Review};
 use forceloop::compiler::{compile, compile_agent, Target};
 use forceloop::schema::CommandSchema;
 use forceloop::traits::CommandMetadata;
@@ -72,8 +72,8 @@ fn assert_populated(name: &str, s: CommandSchema) {
 }
 
 #[test]
-fn all_6_commands_have_populated_schemas() {
-    // Only the 6 Skill / Custom Command objects in `src/commands/`
+fn all_5_commands_have_populated_schemas() {
+    // Only the 5 Skill / Custom Command objects in `src/commands/`
     // implement `CommandMetadata` and have a skill/command template.
     // The 4 top-level subcommands (Setup, Gate, Status, Archive) are
     // terminal CLI subcommands and intentionally do NOT implement
@@ -89,8 +89,6 @@ fn all_6_commands_have_populated_schemas() {
     assert_populated("Implement", Implement.command_template());
     assert_populated("Review", Review.skill_template());
     assert_populated("Review", Review.command_template());
-    assert_populated("TryFinish", TryFinish.skill_template());
-    assert_populated("TryFinish", TryFinish.command_template());
 }
 
 #[test]
@@ -136,7 +134,6 @@ fn all_commands_compile_to_valid_claude_markdown() {
         Audit.skill_template(),
         Implement.skill_template(),
         Review.skill_template(),
-        TryFinish.skill_template(),
     ];
     for s in &schemas {
         let out = compile(s, Target::Claude).unwrap();
@@ -154,9 +151,9 @@ fn all_commands_compile_to_valid_claude_markdown() {
 fn end_to_end_compile_agent_with_real_implement_schema() {
     // Implement has Edit + Bash + Grep + Glob + Write — exercises full mapping.
     let s = Implement.skill_template();
-    let out = compile_agent("implement", &s).unwrap();
+    let out = compile_agent("fl-implement", &s).unwrap();
 
-    assert!(out.starts_with("---\nname: implement\n"));
+    assert!(out.starts_with("---\nname: fl-implement\n"));
     assert!(out.contains("permissions:"));
     // All Implement tool categories should map
     assert!(out.contains("bash: \"allow\"")); // Bash

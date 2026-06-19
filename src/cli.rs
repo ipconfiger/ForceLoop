@@ -28,6 +28,8 @@ pub enum Tool {
     Claude,
     #[value(name = "opencode")]
     OpenCode,
+    #[value(name = "omp")]
+    OhMyPi,
 }
 
 /// Convert CLI `Tool` enum to compiler `Target` enum.
@@ -42,6 +44,7 @@ impl From<Tool> for Target {
         match t {
             Tool::Claude => Target::Claude,
             Tool::OpenCode => Target::OpenCode,
+            Tool::OhMyPi => Target::OhMyPi,
         }
     }
 }
@@ -59,6 +62,16 @@ pub enum Commands {
     },
     /// Gate control command, typically invoked by hooks
     Gate,
+    /// Create a new development goal and design spec
+    New,
+    /// Create development plan (multiple waves)
+    Plan,
+    /// Audit design spec and development plan
+    Audit,
+    /// Develop the current phase (TDD)
+    Implement,
+    /// Regression-validate the implementation
+    Review,
     /// View current status
     Status,
     /// Archive development plan

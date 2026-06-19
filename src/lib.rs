@@ -8,6 +8,7 @@ pub mod errors;
 pub mod gate;
 pub mod schema;
 pub mod setup;
+pub mod state;
 pub mod status;
 pub mod traits;
 pub mod utils;

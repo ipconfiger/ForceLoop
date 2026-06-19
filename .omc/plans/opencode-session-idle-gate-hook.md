@@ -1,5 +1,13 @@
 # OpenCode `session.idle` Hook：自动调用 `fl gate`
 
+> **Superseded by**: [setup-opencode-hook-correction.md](setup-opencode-hook-correction.md)
+>
+> 本 plan 的项目级文件路径（`<root>/opencode.json` + `<root>/plugin/hook.ts`）与 OpenCode 官方文档（https://opencode.ai/docs/zh-cn/config/）冲突：
+> - 文档说配置应该在 `<root>/.opencode/opencode.json`、插件在 `<root>/.opencode/plugins/`
+> - 文档说"配置文件是合并在一起的，而不是替换"
+>
+> 已被 [setup-opencode-hook-correction.md](setup-opencode-hook-correction.md) 修正。本文件保留作为历史记录。
+
 ## TL;DR
 
 > **Quick Summary**: 扩展 `fl setup` 的 OpenCode 注入路径,在生成 6 个 command 文件之外,额外写出 2 个项目级文件,让 OpenCode 在 `session.idle` 事件里自动调用 `fl gate`,实现"AI 回复结束 → gate 检查 → 失败时把 stdout+stderr 注回 prompt 让 AI 自动修复"的闭环。生成物:项目根的 `opencode.json` 和 `plugin/hook.ts`。

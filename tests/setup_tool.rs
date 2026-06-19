@@ -7,10 +7,13 @@ use forceloop::setup::{default_targets, effective_targets, run, DEFAULT_TARGETS}
 use tempfile::TempDir;
 
 #[test]
-fn default_targets_constant_is_both_platforms() {
+fn default_targets_constant_is_all_platforms() {
     // Pins DEFAULT_TARGETS — if anyone changes the default, this fails.
-    assert_eq!(default_targets(), vec![Target::Claude, Target::OpenCode]);
-    assert_eq!(DEFAULT_TARGETS.len(), 2);
+    assert_eq!(
+        default_targets(),
+        vec![Target::Claude, Target::OpenCode, Target::OhMyPi]
+    );
+    assert_eq!(DEFAULT_TARGETS.len(), 3);
 }
 
 #[test]
@@ -37,35 +40,41 @@ fn execute_with_two_targets_preserves_order() {
 }
 
 #[test]
-fn run_default_writes_both_targets() {
+fn run_default_writes_all_targets() {
     let tmp = TempDir::new().unwrap();
     let report = run(&default_targets(), tmp.path()).unwrap();
-    // 6 commands × 2 targets = 12 command files
-    // + 2 OpenCode hook files (opencode.json + plugin/hook.ts)
-    // = 14 total
-    assert_eq!(report.written.len(), 14);
-    assert!(tmp.path().join(".claude/commands/new.md").exists());
-    assert!(tmp.path().join(".opencode/command/new.md").exists());
-    // OpenCode hook files
-    assert!(tmp.path().join("opencode.json").exists());
-    assert!(tmp.path().join("plugin/hook.ts").exists());
+    // 5 commands × 3 targets = 15 command files
+    // + 1 OpenCode hook + 1 omp hook = 17 total
+    assert_eq!(report.written.len(), 17);
+    assert!(tmp.path().join(".claude/commands/fl-new.md").exists());
+    assert!(tmp.path().join(".opencode/command/fl-new.md").exists());
+    assert!(tmp.path().join(".omp/commands/fl-new.md").exists());
+    // OpenCode hook files (plugin auto-loaded from .opencode/plugins/).
+    assert!(!tmp.path().join(".opencode/opencode.json").exists());
+    assert!(tmp.path().join(".opencode/plugins/fl.ts").exists());
+    // omp hook file.
+    assert!(tmp.path().join(".omp/hooks/pre/fl-gate.ts").exists());
 }
 
 #[test]
 fn claude_only_writes_claude_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::Claude], tmp.path()).unwrap();
-    assert_eq!(report.written.len(), 6);
-    assert!(tmp.path().join(".claude/commands/new.md").exists());
-    assert!(!tmp.path().join(".opencode/").exists());
-    // Claude-only must NOT register the OpenCode hook.
+    assert_eq!(report.written.len(), 5);
+    assert!(tmp.path().join(".claude/commands/fl-new.md").exists());
+    // Claude-only target must NOT touch any OpenCode directory.
+    assert!(
+        !tmp.path().join(".opencode/").exists(),
+        "Claude-only setup must not create .opencode/"
+    );
+    // Claude-only must NOT write the legacy (root-level) hook paths.
     assert!(
         !tmp.path().join("opencode.json").exists(),
-        "Claude-only setup must not write opencode.json"
+        "Claude-only setup must not write legacy opencode.json"
     );
     assert!(
         !tmp.path().join("plugin/").exists(),
-        "Claude-only setup must not create plugin/ directory"
+        "Claude-only setup must not create legacy plugin/ directory"
     );
 }
 
@@ -73,20 +82,34 @@ fn claude_only_writes_claude_dir() {
 fn opencode_only_writes_opencode_dir() {
     let tmp = TempDir::new().unwrap();
     let report = run(&[Target::OpenCode], tmp.path()).unwrap();
-    // 6 commands + 2 hook files = 8
-    assert_eq!(report.written.len(), 8);
-    assert!(tmp.path().join(".opencode/command/new.md").exists());
+    // 5 commands + 1 hook file = 6
+    assert_eq!(report.written.len(), 6);
+    assert!(tmp.path().join(".opencode/command/fl-new.md").exists());
     assert!(!tmp.path().join(".claude/").exists());
-    // OpenCode-only DOES register the hook.
-    assert!(tmp.path().join("opencode.json").exists());
-    assert!(tmp.path().join("plugin/hook.ts").exists());
+    // OpenCode-only registers the plugin file (auto-loaded from dir).
+    assert!(!tmp.path().join(".opencode/opencode.json").exists());
+    assert!(tmp.path().join(".opencode/plugins/fl.ts").exists());
+}
+
+#[test]
+fn omp_only_writes_omp_dir() {
+    let tmp = TempDir::new().unwrap();
+    let report = run(&[Target::OhMyPi], tmp.path()).unwrap();
+    // 5 commands + 1 hook file = 6
+    assert_eq!(report.written.len(), 6);
+    assert!(tmp.path().join(".omp/commands/fl-new.md").exists());
+    // omp-only must NOT touch Claude or OpenCode directories.
+    assert!(!tmp.path().join(".claude/").exists());
+    assert!(!tmp.path().join(".opencode/").exists());
+    // omp hook file.
+    assert!(tmp.path().join(".omp/hooks/pre/fl-gate.ts").exists());
 }
 
 #[test]
 fn written_files_have_valid_frontmatter() {
     let tmp = TempDir::new().unwrap();
     run(&[Target::Claude], tmp.path()).unwrap();
-    let content = fs::read_to_string(tmp.path().join(".claude/commands/new.md")).unwrap();
+    let content = fs::read_to_string(tmp.path().join(".claude/commands/fl-new.md")).unwrap();
     assert!(content.starts_with("---\n"));
     assert!(content.contains("\n---\n"));
     assert!(content.contains("description:"));
@@ -99,7 +122,7 @@ fn run_creates_deeply_nested_root() {
     // create_dir_all should handle this — should not error.
     let report = run(&[Target::Claude], &bogus).unwrap();
     assert!(!report.written.is_empty());
-    assert!(bogus.join(".claude/commands/new.md").exists());
+    assert!(bogus.join(".claude/commands/fl-new.md").exists());
 }
 
 #[test]
@@ -130,7 +153,7 @@ fn run_overwrites_existing_files_with_current_compile_output() {
     // Documented behavior: fs::write silently overwrites. Re-running
     // `setup` produces the same content — deterministic, idempotent.
     let tmp = TempDir::new().unwrap();
-    let target_path = tmp.path().join(".claude/commands/new.md");
+    let target_path = tmp.path().join(".claude/commands/fl-new.md");
     fs::create_dir_all(target_path.parent().unwrap()).unwrap();
     fs::write(&target_path, "STALE CONTENT FROM PREVIOUS RUN").unwrap();
 
@@ -144,7 +167,7 @@ fn run_overwrites_existing_files_with_current_compile_output() {
 }
 
 #[test]
-fn run_writes_all_six_commands_per_target() {
+fn run_writes_all_five_commands_per_target() {
     // Sanity: every Skill / Custom Command in the static table is written.
     // The 4 top-level subcommands (Setup, Gate, Status, Archive) are
     // intentionally absent — they are terminal CLI subcommands, not
@@ -158,12 +181,11 @@ fn run_writes_all_six_commands_per_target() {
         .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
         .collect();
     let expected: BTreeSet<_> = [
-        "new.md",
-        "plan.md",
-        "audit.md",
-        "implement.md",
-        "review.md",
-        "try_finish.md",
+        "fl-new.md",
+        "fl-plan.md",
+        "fl-audit.md",
+        "fl-implement.md",
+        "fl-review.md",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -177,7 +199,7 @@ fn run_opencode_files_use_singular_command_dir() {
     // not `.opencode/commands/` (plural). Verify path conventions.
     let tmp = TempDir::new().unwrap();
     run(&[Target::OpenCode], tmp.path()).unwrap();
-    assert!(tmp.path().join(".opencode/command/new.md").exists());
+    assert!(tmp.path().join(".opencode/command/fl-new.md").exists());
     assert!(!tmp.path().join(".opencode/commands/").exists());
 }
 
@@ -186,7 +208,7 @@ fn run_claude_files_use_plural_commands_dir() {
     // Claude Code's convention is `.claude/commands/` (plural).
     let tmp = TempDir::new().unwrap();
     run(&[Target::Claude], tmp.path()).unwrap();
-    assert!(tmp.path().join(".claude/commands/new.md").exists());
+    assert!(tmp.path().join(".claude/commands/fl-new.md").exists());
     assert!(!tmp.path().join(".claude/command/").exists());
 }
 
@@ -213,26 +235,29 @@ fn setup_md_is_not_generated() {
         !tmp.path().join(".opencode/command/setup.md").exists(),
         ".opencode/command/setup.md must not exist"
     );
+    assert!(
+        !tmp.path().join(".omp/commands/setup.md").exists(),
+        ".omp/commands/setup.md must not exist"
+    );
 }
 
 #[test]
 fn opencode_hook_files_have_expected_content() {
-    // Validates the content contracts of both hook files:
-    //   - opencode.json is valid JSON pointing to ./plugin/hook.ts
-    //   - plugin/hook.ts references fl gate, session.idle, noReply: false
-    //     and the 60_000 ms timeout
-    // See `.omc/plans/opencode-session-idle-gate-hook.md` for rationale.
+    // Validates the content contracts of the plugin file.
+    // Per OpenCode docs, local plugins are auto-loaded from
+    // .opencode/plugins/ — no opencode.json registration needed.
+    // See `docs/opencode-hook-spec-correction.md` for rationale.
     let tmp = TempDir::new().unwrap();
     run(&[Target::OpenCode], tmp.path()).unwrap();
 
-    // opencode.json is valid JSON pointing to our plugin
-    let json = fs::read_to_string(tmp.path().join("opencode.json")).unwrap();
-    let v: serde_json::Value =
-        serde_json::from_str(&json).expect("opencode.json must be valid JSON");
-    assert_eq!(v["plugin"][0], "./plugin/hook.ts");
+    // No opencode.json is written (local plugin, auto-loaded).
+    assert!(
+        !tmp.path().join(".opencode/opencode.json").exists(),
+        "must NOT write opencode.json for directory-loaded plugins"
+    );
 
-    // plugin/hook.ts contains the key contracts
-    let ts = fs::read_to_string(tmp.path().join("plugin/hook.ts")).unwrap();
+    // plugins/fl.ts contains the key contracts.
+    let ts = fs::read_to_string(tmp.path().join(".opencode/plugins/fl.ts")).unwrap();
     assert!(ts.contains("fl gate"), "hook must call `fl gate`");
     assert!(
         ts.contains("session.idle"),
@@ -243,7 +268,118 @@ fn opencode_hook_files_have_expected_content() {
         "hook must set noReply: false to trigger AI auto-reply"
     );
     assert!(
-        ts.contains(".timeout(60_000)"),
-        "hook must use 60s timeout per reference doc"
+        ts.contains(".nothrow()"),
+        "hook must use .nothrow() to catch non-zero exit"
     );
+}
+
+#[test]
+fn omp_hook_files_have_expected_content() {
+    // Validates the content contracts of the omp hook file.
+    // See `docs/omp-hook-porting.html` for the spec.
+    let tmp = TempDir::new().unwrap();
+    run(&[Target::OhMyPi], tmp.path()).unwrap();
+
+    let ts =
+        fs::read_to_string(tmp.path().join(".omp/hooks/pre/fl-gate.ts")).unwrap();
+    assert!(ts.contains("fl gate"), "hook must call `fl gate`");
+    assert!(
+        ts.contains("session_stop"),
+        "hook must use session_stop event"
+    );
+    assert!(ts.contains("continue: true"), "hook must set continue: true");
+    assert!(
+        ts.contains("additionalContext"),
+        "hook must provide additionalContext"
+    );
+    assert!(ts.contains(".nothrow()"), "hook must use .nothrow()");
+    assert!(
+        !ts.contains(".quiet()"),
+        "hook must NOT use .quiet() — suppresses stderr capture"
+    );
+    assert!(
+        ts.contains("@oh-my-pi/pi-coding-agent"),
+        "hook must import from @oh-my-pi/pi-coding-agent"
+    );
+}
+
+#[test]
+fn opencode_migrates_legacy_files() {
+    // Pre-condition: an older `fl setup` wrote files at the legacy
+    // (root-level) paths. New `fl setup` must delete them and write
+    // only the plugin file (no opencode.json — auto-loaded from dir).
+    let tmp = TempDir::new().unwrap();
+    let old_json = tmp.path().join("opencode.json");
+    let old_plugin_dir = tmp.path().join("plugin");
+    let old_hook = old_plugin_dir.join("hook.ts");
+    fs::write(&old_json, "{\"plugin\":[\"./plugin/hook.ts\"]}\n").unwrap();
+    fs::create_dir_all(&old_plugin_dir).unwrap();
+    fs::write(&old_hook, "// legacy hook\n").unwrap();
+
+    // Also simulate the v2 error: .opencode/opencode.json with plugin entry.
+    let v2_dir = tmp.path().join(".opencode");
+    fs::create_dir_all(&v2_dir).unwrap();
+    let v2_json = v2_dir.join("opencode.json");
+    fs::write(&v2_json, "{\"plugin\":[\"./plugins/hook.ts\"]}\n").unwrap();
+
+    run(&[Target::OpenCode], tmp.path()).unwrap();
+
+    // Legacy files removed.
+    assert!(!old_json.exists(), "legacy opencode.json must be deleted");
+    assert!(!old_plugin_dir.exists(), "legacy plugin/ must be removed");
+    assert!(!old_hook.exists(), "legacy plugin/hook.ts must be removed");
+    // v2 error: .opencode/opencode.json must also be removed.
+    assert!(!v2_json.exists(), "v2 .opencode/opencode.json must be deleted");
+
+    // Only the plugin file is written (auto-loaded from directory).
+    let new_hook = tmp.path().join(".opencode/plugins/fl.ts");
+    assert!(new_hook.exists());
+    assert!(
+        !tmp.path().join(".opencode/opencode.json").exists(),
+        "must NOT write opencode.json"
+    );
+}
+
+#[test]
+fn opencode_removes_v2_opencode_json() {
+    // v2 of fl setup incorrectly wrote a local plugin path to
+    // .opencode/opencode.json. Per OpenCode docs, local plugins
+    // are auto-loaded from .opencode/plugins/ — no config entry.
+    // Setup must now delete any existing .opencode/opencode.json.
+    let tmp = TempDir::new().unwrap();
+    let new_dir = tmp.path().join(".opencode");
+    fs::create_dir_all(&new_dir).unwrap();
+    let json_path = new_dir.join("opencode.json");
+    fs::write(
+        &json_path,
+        "{\n  \"plugin\": [\"./other.ts\"],\n  \"theme\": \"dark\"\n}\n",
+    )
+    .unwrap();
+
+    run(&[Target::OpenCode], tmp.path()).unwrap();
+
+    // .opencode/opencode.json was deleted (v2 error cleanup).
+    assert!(
+        !json_path.exists(),
+        ".opencode/opencode.json must be deleted by setup"
+    );
+    // Plugin file written correctly.
+    assert!(tmp.path().join(".opencode/plugins/fl.ts").exists());
+}
+
+#[test]
+fn opencode_setup_is_idempotent() {
+    // Running `fl setup` twice in a row must produce the same
+    // file set without errors (idempotent re-run).
+    let tmp = TempDir::new().unwrap();
+    run(&[Target::OpenCode], tmp.path()).unwrap();
+    run(&[Target::OpenCode], tmp.path()).unwrap();
+
+    // No opencode.json is ever written.
+    assert!(
+        !tmp.path().join(".opencode/opencode.json").exists(),
+        "must never write opencode.json"
+    );
+    // Plugin file exists after both runs.
+    assert!(tmp.path().join(".opencode/plugins/fl.ts").exists());
 }

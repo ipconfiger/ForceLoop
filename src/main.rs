@@ -18,6 +18,11 @@ fn main() -> Result<()> {
             let ctx = Context::with_targets(targets);
             forceloop::setup::Setup.execute(&ctx)?;
         }
+        Commands::New => forceloop::commands::New.execute(&ctx)?,
+        Commands::Plan => forceloop::commands::Plan.execute(&ctx)?,
+        Commands::Audit => forceloop::commands::Audit.execute(&ctx)?,
+        Commands::Implement => forceloop::commands::Implement.execute(&ctx)?,
+        Commands::Review => forceloop::commands::Review.execute(&ctx)?,
         Commands::Gate => forceloop::gate::Gate.execute(&ctx)?,
         Commands::Status => forceloop::status::Status.execute(&ctx)?,
         Commands::Archive => forceloop::archive::Archive.execute(&ctx)?,

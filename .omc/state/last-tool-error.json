@@ -1,0 +1,7 @@
+{
+  "tool_name": "WebFetch",
+  "tool_input_preview": "{\"url\":\"file:///Users/alex/Projects/testspace/todo_test1/docs/omp-hook-porting.html\",\"prompt\":\"Extract the complete content of this HTML document. I need every detail about oh-my-pi hook porting, incl...",
+  "error": "Invalid URL",
+  "timestamp": "2026-06-19T06:35:09.231Z",
+  "retry_count": 1
+}

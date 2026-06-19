@@ -1,0 +1,31 @@
+{
+  "active_plan": "/Users/alex/Projects/workspace/ForceLoop/.sisyphus/plans/cli-framework.md",
+  "started_at": "2026-06-09T15:07:54.589Z",
+  "session_ids": [
+    "ses_1536025c4ffekGIEAXJLKzo4kh"
+  ],
+  "session_origins": {
+    "ses_1536025c4ffekGIEAXJLKzo4kh": "direct"
+  },
+  "plan_name": "cli-framework",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Cargo.toml + rust-toolchain.toml — 项目配置",
+      "session_id": "ses_153107d7fffehB8mJrCembR3hV",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-06-09T15:15:31.514Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_1530650aeffePRt1aRJBCsialx",
+      "agent": "oracle",
+      "updated_at": "2026-06-09T15:23:42.960Z"
+    }
+  }
+}

@@ -10,6 +10,11 @@ fn help_shows_all_subcommands() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("setup"), "help should mention 'setup'");
     assert!(stdout.contains("gate"), "help should mention 'gate'");
+    assert!(stdout.contains("new"), "help should mention 'new'");
+    assert!(stdout.contains("plan"), "help should mention 'plan'");
+    assert!(stdout.contains("audit"), "help should mention 'audit'");
+    assert!(stdout.contains("implement"), "help should mention 'implement'");
+    assert!(stdout.contains("review"), "help should mention 'review'");
     assert!(stdout.contains("status"), "help should mention 'status'");
     assert!(stdout.contains("archive"), "help should mention 'archive'");
 }

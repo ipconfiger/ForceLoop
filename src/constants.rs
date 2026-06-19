@@ -1,6 +1,9 @@
 /// ForceLoop project directory name (under project root)
 pub const FORCELOOP_DIR: &str = ".forceloop";
 
+/// Verification result file name (inside .forceloop/)
+pub const RESULT_FILE: &str = "result.json";
+
 /// State file name (inside .forceloop/)
 pub const STATE_FILE: &str = "state.json";
 
@@ -30,3 +33,27 @@ pub const ENV_PROJECT_ROOT: &str = "FORCELOOP_PROJECT_ROOT";
 
 /// Environment variable name for debug/verbose output
 pub const ENV_DEBUG: &str = "FORCELOOP_DEBUG";
+
+/// Specs subdirectory name (inside .forceloop/)
+pub const SPECS_DIR: &str = "specs";
+
+/// Spec index file path (inside .forceloop/)
+pub const SPECS_INDEX: &str = "specs/index.md";
+
+/// Plans subdirectory name (inside .forceloop/)
+pub const PLANS_DIR: &str = "plans";
+
+/// Plans index file path (inside .forceloop/)
+pub const PLANS_INDEX: &str = "plans/index.md";
+
+/// Audit report file name (inside .forceloop/)
+pub const AUDIT_FILE: &str = "audit.md";
+
+/// Wave state checklist file name (inside .forceloop/)
+pub const WAVE_STATE: &str = "wave_state.md";
+
+/// Review result file name (inside .forceloop/)
+pub const REVIEW_RESULT: &str = "review_result.md";
+
+/// Error log file name (inside .forceloop/)
+pub const ERROR_LOG: &str = "error.log";

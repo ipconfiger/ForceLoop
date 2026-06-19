@@ -249,6 +249,8 @@ pub enum Target {
     Claude,
     /// sst/opencode v2 (`.opencode/command/<name>.md`).
     OpenCode,
+    /// oh-my-pi (`.omp/commands/<name>.md`).
+    OhMyPi,
 }
 
 /// Compile a ForceLoop schema into a platform-native markdown file.
@@ -258,7 +260,7 @@ pub enum Target {
 pub fn compile(schema: &CommandSchema, target: Target) -> Result<String> {
     match target {
         Target::Claude => compile_to_claude(schema),
-        Target::OpenCode => compile_to_opencode(schema),
+        Target::OpenCode | Target::OhMyPi => compile_to_opencode(schema),
     }
 }
 
