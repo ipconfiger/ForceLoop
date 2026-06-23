@@ -69,6 +69,10 @@ structured dimensions. Run full test suite and produce a quality verdict.
 - All tests pass (`cargo test` returns 0).
 - Clippy passes (`cargo clippy --all-targets` returns 0).
 - Verdict and Issues sections are present.
+
+## Pipeline Completion
+**STOP**. The pipeline is complete.
+The hook will automatically run `fl gate` to advance to \"done\".
 ";
 
 const COMMAND_PROMPT: &str = "\
@@ -92,6 +96,10 @@ Arguments: $ARGUMENTS
 ## Verification
 - `cargo test` passes. `cargo clippy` passes.
 - `.forceloop/review_result.md` has Verdict, Issues list, and all checkboxes completed.
+
+## Pipeline Completion
+**STOP**. The pipeline is complete.
+The hook will advance the pipeline automatically.
 ";
 
 fn review_skill() -> CommandSchema {

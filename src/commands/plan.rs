@@ -107,6 +107,11 @@ Spec source: `.forceloop/specs/`
 - Each wave file (except wave 1) declares `Depends on:` or justifies absence.
 - No stub or mock implementations remain after each wave.
 - Wave dependency graph is a DAG (no cycles).
+
+## Pipeline Completion
+**STOP**. Do NOT attempt to continue with the next phase
+(auditing). The hook will automatically run `fl gate`
+to advance the pipeline. The next phase is ready when you run `/fl-audit`.
 ";
 
 const COMMAND_PROMPT: &str = "\
@@ -141,6 +146,10 @@ Arguments: $ARGUMENTS
 - `.forceloop/plans/index.md` exists.
 - Every wiki link resolves; each wave has spec ref + optional dep ref.
 - Wave dependency graph is a DAG.
+
+## Pipeline Completion
+**STOP**. Do NOT continue to the next phase.
+The hook will advance the pipeline automatically.
 ";
 
 /// Read all wave files in `plans_dir` (excluding `index.md`), extract

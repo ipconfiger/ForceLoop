@@ -103,6 +103,11 @@ Goal description: $ARGUMENTS
 - Each module file has all required sections filled (no empty sections).
 - Each NFR is quantified (no vague terms like \"fast\" or \"secure\").
 - Module count is between 3 and 8 (or explicitly justified if outside this range).
+
+## Pipeline Completion
+**STOP**. Do NOT attempt to continue with the next phase
+(creating plan waves). The hook will automatically run `fl gate`
+to advance the pipeline. The next phase is ready when you run `/fl-plan`.
 ";
 
 /// Slash command: invoke the new-goal workflow.
@@ -135,6 +140,10 @@ Arguments: $ARGUMENTS
 - Every wiki link resolves.
 - Each module file has all required sections.
 - NFRs are quantified; module count 3-8 or justified.
+
+## Pipeline Completion
+**STOP**. Do NOT continue to the next phase.
+The hook will advance the pipeline automatically.
 ";
 
 fn new_skill() -> CommandSchema {

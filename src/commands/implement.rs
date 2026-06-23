@@ -45,8 +45,10 @@ Tracks progress via `.forceloop/wave_state.md`.
 6. Mark the item as completed in BOTH:
    - The wave file's own checklist in `.forceloop/plans/`
    - `.forceloop/wave_state.md` (change `- [ ]` to `- [x]`)
-7. The OpenCode hook calls `fl gate` automatically on idle.
-   If it fails, run `/fl-implement` again to load the next wave.
+7. **STOP**. Do NOT continue to the next wave.
+   The hook will automatically run `fl gate` to advance.
+   If the gate passes and more waves remain, run `/fl-implement` again.
+   If the gate fails, fix any issues, then run `/fl-implement` again.
 
 ## Constraints
 - TDD mandatory: ALL tests before any code.
@@ -79,7 +81,9 @@ Arguments: $ARGUMENTS
 5. TDD: write ALL tests (Red) → implement ALL code (Green) → refactor.
 6. Run `cargo check && cargo test && cargo clippy --all-targets`.
 7. Update checklists in both the wave file and wave_state.md.
-8. The hook calls `fl gate` automatically. If it fails, run `/fl-implement` again.
+8. **STOP**. The hook will automatically run `fl gate` to advance.
+   If the gate passes and more waves remain, run `/fl-implement` again.
+   If the gate fails, fix any issues and run `/fl-implement` again.
 
 ## Constraints
 - TDD mandatory. No `unwrap()` in production code. No debug prints.

@@ -82,6 +82,11 @@ Read from: `.forceloop/specs/` and `.forceloop/plans/`
 - No CRITICAL or HIGH issues remain unresolved (all fixed or escalated).
 - Quality scores are assigned.
 - Recommendation verdict is present.
+
+## Pipeline Completion
+**STOP**. Do NOT attempt to continue with the next phase
+(implementation). The hook will automatically run `fl gate`
+to advance the pipeline. The next phase is ready when you run `/fl-implement`.
 ";
 
 const COMMAND_PROMPT: &str = "\
@@ -109,6 +114,10 @@ Arguments: $ARGUMENTS
 - `.forceloop/audit.md` exists.
 - Every checklist item completed; no CRITICAL/HIGH unresolved.
 - Quality scores and recommendation verdict present.
+
+## Pipeline Completion
+**STOP**. Do NOT continue to the next phase.
+The hook will advance the pipeline automatically.
 ";
 
 fn audit_skill() -> CommandSchema {
