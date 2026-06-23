@@ -1,0 +1,219 @@
+# GitHub Actions Release Workflow for Forceloop
+#
+# Triggered by: git tag v*.*.* (e.g. v0.1.0, v0.2.0)
+# What it does:
+#   1. Builds the Rust binary for all 8 platforms
+#   2. Creates npm platform-specific packages (one per arch)
+#   3. Creates the main @forceloop/cli npm package
+#   4. Publishes all packages to npm
+#   5. Creates a GitHub Release
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+  # Enable sccache for faster rebuilds
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
+jobs:
+  # ── Build matrix: all 8 target platforms ──────────────────────────
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            npm_dir: darwin-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            npm_dir: darwin-x64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            npm_dir: linux-x64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            npm_dir: linux-arm64
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            npm_dir: linux-x64-musl
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            npm_dir: linux-arm64-musl
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            npm_dir: win32-x64
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            npm_dir: win32-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Cross-compilation dependencies for Linux ARM targets
+      - name: Install cross-compile toolchain (aarch64-linux-gnu)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install cross-compile toolchain (musl)
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      # Enable cross-compilation via Cargo config
+      - name: Configure cargo for aarch64-linux-gnu
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml << 'EOF'
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.7
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare npm package directory
+        shell: bash
+        run: |
+          mkdir -p npm/${{ matrix.npm_dir }}/package
+
+      - name: Copy binary to npm package
+        shell: bash
+        run: |
+          if [[ "${{ matrix.target }}" == *-windows-* ]]; then
+            cp target/${{ matrix.target }}/release/fl.exe npm/${{ matrix.npm_dir }}/package/fl.exe
+          else
+            cp target/${{ matrix.target }}/release/fl npm/${{ matrix.npm_dir }}/package/fl
+            chmod +x npm/${{ matrix.npm_dir }}/package/fl
+          fi
+
+      - name: Pack npm tarball
+        run: |
+          cd npm/${{ matrix.npm_dir }}
+          npm pack
+          mv *.tgz ../../forceloop-cli-${{ matrix.npm_dir }}.tgz
+
+      - name: Upload npm tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.npm_dir }}
+          path: forceloop-cli-${{ matrix.npm_dir }}.tgz
+          if-no-files-found: error
+
+  # ── Publish to npm ────────────────────────────────────────────────
+  publish-npm:
+    name: Publish to npm
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # for GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download all platform tarballs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: npm-*
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la *.tgz
+
+      # ── Publish platform packages ───────────────────────────
+      - name: Publish darwin-arm64
+        run: npm publish forceloop-cli-darwin-arm64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish darwin-x64
+        run: npm publish forceloop-cli-darwin-x64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish linux-x64
+        run: npm publish forceloop-cli-linux-x64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish linux-arm64
+        run: npm publish forceloop-cli-linux-arm64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish linux-x64-musl
+        run: npm publish forceloop-cli-linux-x64-musl.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish linux-arm64-musl
+        run: npm publish forceloop-cli-linux-arm64-musl.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish win32-x64
+        run: npm publish forceloop-cli-win32-x64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish win32-arm64
+        run: npm publish forceloop-cli-win32-arm64.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ── Pack and publish main package ────────────────────────
+      - name: Pack main package
+        run: cd npm/main && npm pack && mv *.tgz ../../forceloop-cli.tgz
+
+      - name: Publish main package
+        run: npm publish forceloop-cli.tgz --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ── Create GitHub Release ───────────────────────────────
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "## What's Changed" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo HEAD)..HEAD --oneline --first-parent >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Installation" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo '```bash' >> $GITHUB_OUTPUT
+          echo "npm install -g @forceloop/cli" >> $GITHUB_OUTPUT
+          echo "# or" >> $GITHUB_OUTPUT
+          echo "cargo install forceloop" >> $GITHUB_OUTPUT
+          echo '```' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          files: |
+            forceloop-cli-*.tgz
+          generate_release_notes: false

@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+// @forceloop/cli binary entry point
+//
+// Detects the current platform and architecture, resolves the matching
+// platform-specific package, and execs the compiled Rust binary.
+//
+// Pattern: same as @biomejs/biome/bin/biome
+
+const { platform, arch } = process;
+const { existsSync } = require("fs");
+const { spawnSync } = require("child_process");
+
+// Platform detection — maps Node.js process values to npm package suffix.
+// The " LE" suffix matches how Node reports endianness in process.arch
+// (e.g. "arm64 LE" on macOS ARM).
+const PLATFORM_PACKAGES = {
+  "darwin arm64 LE": "@forceloop/cli-darwin-arm64",
+  "darwin x64 LE":   "@forceloop/cli-darwin-x64",
+  "linux arm64 LE":  "@forceloop/cli-linux-arm64",
+  "linux x64 LE":    "@forceloop/cli-linux-x64",
+  "win32 arm64 LE":  "@forceloop/cli-win32-arm64",
+  "win32 x64 LE":    "@forceloop/cli-win32-x64",
+};
+
+// Linux musl detection — if ldd reports musl, use musl-specific binary
+function isMusl() {
+  if (platform !== "linux") return false;
+  try {
+    const { execSync } = require("child_process");
+    const stderr = execSync("ldd --version 2>&1 || true").toString().toLowerCase();
+    return stderr.includes("musl");
+  } catch {
+    return false;
+  }
+}
+
+function resolveBinaryPath() {
+  // Allow override via environment variable (for testing / local dev)
+  const envOverride = process.env.FORCELOOP_BINARY_PATH;
+  if (envOverride && existsSync(envOverride)) return envOverride;
+
+  const key = `${platform} ${arch} LE`;
+  let pkgName = PLATFORM_PACKAGES[key];
+
+  // Linux musl: try musl-specific package first, fall back to glibc
+  if (!pkgName && platform === "linux" && isMusl()) {
+    const muslKey = `linux ${arch} LE`;
+    if (PLATFORM_PACKAGES[muslKey]) {
+      const muslPkg = `@forceloop/cli-linux-${arch}-musl`;
+      try {
+        return require.resolve(`${muslPkg}/package/fl`);
+      } catch {
+        pkgName = PLATFORM_PACKAGES[muslKey];
+      }
+    }
+  }
+
+  if (!pkgName) {
+    console.error(`Unsupported platform: ${platform} ${arch}`);
+    console.error("See supported platforms at https://github.com/ipconfiger/ForceLoop");
+    process.exit(1);
+  }
+
+  // Try the binary, then .exe (Windows)
+  try {
+    return require.resolve(`${pkgName}/package/fl`);
+  } catch {
+    try {
+      return require.resolve(`${pkgName}/package/fl.exe`);
+    } catch {
+      console.error(
+        `Binary not found for ${platform} ${arch}. ` +
+        `Try: npm install ${pkgName}`
+      );
+      process.exit(1);
+    }
+  }
+}
+
+const binaryPath = resolveBinaryPath();
+const result = spawnSync(binaryPath, process.argv.slice(2), {
+  stdio: "inherit",
+});
+process.exit(result.status ?? 0);

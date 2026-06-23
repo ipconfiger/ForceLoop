@@ -4,9 +4,11 @@
 ForceLoop imposes a lightweight pipeline — New → Plan → Audit → Implement → Review → Done — and uses platform hooks to automatically gate each phase. When a gate fails, the error is fed back to the AI, creating an autonomous fix loop.
 
 [![Crates.io][crates-badge]](https://crates.io/crates/forceloop)
+[![npm][npm-badge]](https://www.npmjs.com/package/@forceloop/cli)
 [![MIT licensed][mit-badge]](LICENSE)
 
 [crates-badge]: https://img.shields.io/crates/v/forceloop
+[npm-badge]: https://img.shields.io/npm/v/@forceloop/cli
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue
 
 ---
@@ -26,6 +28,18 @@ ForceLoop imposes a lightweight pipeline — New → Plan → Audit → Implemen
 ---
 
 ## Installation
+
+### From npm (no Rust toolchain required)
+
+```bash
+npm install -g @forceloop/cli
+```
+
+Or run directly without installing:
+
+```bash
+npx @forceloop/cli setup --help
+```
 
 ### From crates.io
 
