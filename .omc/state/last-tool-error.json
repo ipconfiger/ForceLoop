@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cargo publish --registry crates-io 2>&1\",\"timeout\":120000,\"description\":\"Publish to crates.io with explicit registry\"}",
-  "error": "Exit code 101\n    Updating crates.io index\nerror: 5 files in the working directory contain changes that were not yet committed into git:\n\n.omc/project-memory.json\n.omc/sessions/155ee8f7-1192-40f2-913f-f466f08fa79a.json\n.omc/state/agent-replay-103079ed-1a1f-4272-9df8-82a16099490b.jsonl\n.omc/state/idle-notif-cooldown.json\n.omc/state/last-tool-error.json\n\nto proceed despite this and include the uncommitted changes, pass the `--allow-dirty` flag",
-  "timestamp": "2026-06-19T14:02:42.791Z",
-  "retry_count": 2
-}
