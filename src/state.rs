@@ -133,10 +133,20 @@ impl PipelineState {
     }
 
     /// Serialize and write state to the given path.
+    ///
+    /// On Unix, the file is made **read-only** after each write so that
+    /// LLM tools (Write/Edit) cannot accidentally corrupt pipeline state.
+    /// `write()` temporarily makes it writable, writes, then re-locks.
+    ///
+    /// This is the single entry point for persisting pipeline state, so
+    /// this protection is universal — it works for all LLM platforms
+    /// (Claude Code, OpenCode, oh-my-pi) without per-platform hooks.
     pub fn write(&self, path: &Path) -> Result<()> {
+        make_writable(path);
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| ForceLoopError::Parse(format!("state.json serialization: {e}")))?;
         fs::write(path, content)?;
+        make_readonly(path);
         Ok(())
     }
 
@@ -158,6 +168,50 @@ impl PipelineState {
     }
 }
 
+
+/// Ensure the file at `path` is writable by the owner.
+///
+/// On Unix: `chmod 644` if currently read-only (mask bit 0o444).
+/// On other platforms: no-op (best-effort).
+/// Silently ignored on any error — never blocks pipeline progress.
+fn make_writable(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(path) {
+            let mode = meta.permissions().mode();
+            if mode & 0o444 == 0o444 && mode & 0o200 == 0 {
+                let mut perms = meta.permissions();
+                perms.set_mode(mode | 0o200);
+                let _ = fs::set_permissions(path, perms);
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+}
+
+/// Make the file at `path` read-only for all.
+///
+/// On Unix: `chmod 444`. On other platforms: no-op (best-effort).
+/// Silently ignored on any error — never blocks pipeline progress.
+fn make_readonly(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o444);
+            let _ = fs::set_permissions(path, perms);
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+}
 
 /// Append a detailed error message to `.forceloop/error.log`.
 /// Silently ignored if not in a forceloop project.
@@ -363,10 +417,60 @@ mod tests {
         state.write(&path).unwrap();
         assert!(path.exists());
 
+        // After write, file should be readable
         let loaded = PipelineState::read_or_default(&path).unwrap();
         assert!(loaded.new);
         assert!(loaded.plan);
         assert!(!loaded.audit);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_write_makes_file_readonly() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("state.json");
+
+        let state = PipelineState {
+            new: true,
+            plan: true,
+            audit: true,
+            ..Default::default()
+        };
+        state.write(&path).unwrap();
+
+        let meta = fs::metadata(&path).unwrap();
+        let mode = meta.permissions().mode();
+        // After write, file should be read-only (0o444)
+        assert_eq!(
+            mode & 0o444,
+            0o444,
+            "file should be read-only after write"
+        );
+        // Should NOT have owner write bit (0o200)
+        assert_eq!(
+            mode & 0o200,
+            0,
+            "file should NOT be writable after write"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_write_is_idempotent_on_readonly() {
+        // Writing twice should succeed: make_writable + write + make_readonly
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("state.json");
+
+        let state = PipelineState {
+            new: true,
+            ..Default::default()
+        };
+        state.write(&path).unwrap();
+        state.write(&path).unwrap(); // second write on read-only file
+
+        let loaded = PipelineState::read_or_default(&path).unwrap();
+        assert!(loaded.new);
     }
 
     #[test]
