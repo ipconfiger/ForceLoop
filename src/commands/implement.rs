@@ -17,6 +17,8 @@ Tracks progress via `.forceloop/wave_state.md`.
 ## Steps
 0. Run the shell command `fl implement`.
    This checks prerequisites before proceeding.
+0.2. **Git setup**: Check if `.git` directory exists in the project root.
+     If not, run `git init` to initialize the repository.
 0.5. **Check audit result**: Read `.forceloop/audit.md`. If the Recommendation
      is \"Blocked\", STOP and notify the user. If \"Conditional\", review any
      open audit issues that affect the current wave.
@@ -30,22 +32,53 @@ Tracks progress via `.forceloop/wave_state.md`.
    BUT DO read the existing project code (`src/`) to understand what was
    built in previous waves — the code is the source of truth for existing
    types, traits, and APIs.
-4.5. **Context gathering**: Before writing any code, search the existing
-     source in `src/` for types, traits, and patterns relevant to this wave.
-     Understand what previous waves built. Read key files this wave depends on.
-     Also check `git status` that the working tree is clean.
-5. Execute the development task per the wave plan. TDD flow per wave:
-   - Write ALL test cases for this wave first (all Red).
-     Include boundary tests, success cases, and error/failure cases.
-   - Implement the code to make ALL tests pass (Green).
-   - Refactor to meet code quality standards (no `unwrap()` in prod code,
-     no commented-out tests, no debug prints, follow existing patterns).
-   - Run `cargo check && cargo test && cargo clippy --all-targets`.
+4.5. **Context gathering and working tree check**: Before writing any code,
+     search the existing source in `src/` for types, traits, and patterns
+     relevant to this wave. Understand what previous waves built.
+     Read key files this wave depends on.
+     **Run `git status` and `git diff --stat`** to verify the working tree
+     is clean. If there are uncommitted changes, stash or commit them first
+     before proceeding. A dirty working tree between waves indicates an
+     incomplete prior wave or unintended drift.
+5. **Analyze wave tasks and parallelize**: Read the wave plan file to identify
+   all files to create, files to modify, and implementation steps. Analyze
+   their dependency relationships (e.g., if file B imports types from file A,
+   B depends on A). Group the tasks into parallel batches:
+   - **Batch 0** — tasks with no dependencies on other tasks in this wave
+   - **Batch 1** — tasks whose dependencies (from Batch 0) are complete
+   - **Batch 2+** — subsequent layers in the dependency chain
+
+   **Execute each batch's tasks in parallel** using SubAgents (one SubAgent
+   per independent task). Each SubAgent follows the TDD flow independently:
+   - Write test cases for its assigned files (Red)
+   - Implement the code to make those tests pass (Green)
+   - Run `cargo check && cargo test` for its scope
+
+   After all SubAgents in the current batch complete successfully, proceed
+   to the next batch. Tasks with dependencies MUST wait for their
+   prerequisites to finish before starting.
+
+   **Important**: SubAgents should work on SEPARATE files to avoid edit
+   conflicts. If two tasks modify the same file, they are NOT independent
+   and must be serialized.
+
+6. **Full integration validation**: After ALL parallel batches complete,
+   run the full test suite across ALL changed files:
+   - Run `cargo check && cargo test && cargo clippy --all-targets`
+   - If any test fails, identify the breaking change, fix it, and re-run
    - Only after ALL tests pass, proceed to the next step.
-6. Mark the item as completed in BOTH:
+7. **Commit the wave**: After all tests pass and checklists are updated,
+   stage and commit the changes with a descriptive message:
+   ```
+   git add -A
+   git commit -m \"wave: $(basename .forceloop/plans/*.md) — <brief summary>\"
+   ```
+   Each wave gets its own commit so the history is clean and rollback
+   is straightforward for any individual wave.
+8. Mark the item as completed in BOTH:
    - The wave file's own checklist in `.forceloop/plans/`
    - `.forceloop/wave_state.md` (change `- [ ]` to `- [x]`)
-7. **STOP**. Do NOT continue to the next wave.
+9. **STOP**. Do NOT continue to the next wave.
    The hook will automatically run `fl gate` to advance.
    If the gate passes and more waves remain, run `/fl-implement` again.
    If the gate fails, fix any issues, then run `/fl-implement` again.
@@ -55,6 +88,9 @@ Tracks progress via `.forceloop/wave_state.md`.
 - No `unwrap()` in production code. No commented-out code. No debug prints.
 - All checks must pass before marking an item complete.
 - Do not mark items complete if tests fail.
+- **Git discipline**: The working tree MUST be clean before starting a wave.
+  Every wave MUST be committed before marking it complete. This ensures
+  each wave is an independently revertible unit in git history.
 
 ## On Blocking Issues
 If you discover the wave plan is unworkable (missing dependencies,
@@ -73,20 +109,31 @@ Arguments: $ARGUMENTS
 
 ## Steps
 0. Run the shell command `fl implement`.
+0.2. **Git setup**: If `.git` does not exist, run `git init`.
 0.5. Read `.forceloop/audit.md` — check Recommendation is not \"Blocked\".
 1. Read `.forceloop/wave_state.md` (auto-generated by plan, do NOT regenerate).
 2. Pick the FIRST unchecked item, find its wave file in `.forceloop/plans/`.
-3. Load ONLY that wave's plan. DO read existing `src/` code for context.
-4. Check `git status` that the working tree is clean.
-5. TDD: write ALL tests (Red) → implement ALL code (Green) → refactor.
-6. Run `cargo check && cargo test && cargo clippy --all-targets`.
-7. Update checklists in both the wave file and wave_state.md.
-8. **STOP**. The hook will automatically run `fl gate` to advance.
+3. Load that wave's plan. Identify all files to create/modify and their
+   dependencies. Group independent tasks for parallel execution.
+   DO read existing `src/` code for context.
+4. **Check working tree**: Run `git status && git diff --stat`. The working
+   tree MUST be clean before starting. Stash or commit any pending changes.
+5. **Parallel TDD**: For independent tasks within this wave, spawn separate
+   SubAgents — each writing tests (Red), implementing (Green), and verifying
+   independently on separate files. Dependent tasks serialize by batch.
+6. **Integrate**: After all parallel tasks complete, run the full test suite
+   together: `cargo check && cargo test && cargo clippy --all-targets`.
+   Fix any cross-task integration issues.
+7. **Commit the wave**: `git add -A && git commit -m \"wave: <name> — <summary>\"`
+8. Update checklists in both the wave file and wave_state.md.
+9. **STOP**. The hook will automatically run `fl gate` to advance.
    If the gate passes and more waves remain, run `/fl-implement` again.
    If the gate fails, fix any issues and run `/fl-implement` again.
 
 ## Constraints
 - TDD mandatory. No `unwrap()` in production code. No debug prints.
+- **Git discipline**: Working tree MUST be clean before each wave.
+  Each wave MUST be committed before marking complete.
 
 ## On Blocking Issues
 If the plan is unworkable, update the wave file in `.forceloop/plans/`

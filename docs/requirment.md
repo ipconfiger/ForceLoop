@@ -15,17 +15,23 @@
 1. new 创建一个新的开发目标和设计规格
 2. plan 创建开发计划（多个阶段）
 3. audit 审核设计规格和开发计划
-4. impl 开发实现
+4. impl 开发实现（TDD）
 5. review 回归验证开发结果
-6. try_finish 验证是否实现开发目标
 
 ### 自定义Command列表
 1. new 创建一个新的开发目标和设计规格
 2. plan 创建开发计划（多个阶段）
 3. audit 审核设计规格和开发计划
-4. impl 开发实现
+4. impl 开发实现（TDD）
 5. review 回归验证开发结果
-6. try_finish 验证是否实现开发目标
+
+### 归档
+- archive 归档开发计划（打包 specs/、plans/ 和根目录的 .json/.md 文件为 tar.gz）
+
+### 支持的工具
+1. Claude Code
+2. OpenCode
+3. oh-my-pi (omp)
 
 ## 非功能性需求
 **高内聚低耦合** 子命令、Skill、自定义Command 都要抽象出trait，然后各自实现trait。（Skills和Command有关联，共用一个trait）

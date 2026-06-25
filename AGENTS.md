@@ -57,13 +57,13 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What This Is
 
-ForceLoop is a Rust CLI tool for structured development workflow (per [docs/requirment.md](docs/requirment.md)). The codebase is being built **skeleton-first**: traits, structs, and module layout are in place; business logic is deliberately `todo!()` placeholders to be filled in later phases.
+ForceLoop is a Rust CLI tool for structured development workflow (per [docs/requirment.md](docs/requirment.md)). The codebase was built **skeleton-first**; many modules have graduated to full implementations while 4 utility functions and `status.rs` remain as `todo!()` placeholders.
 
 ## Build & Test Commands
 
 ```bash
 cargo check                    # Quick compile check (1 crate, ~0.1s)
-cargo build                    # Compile binary to target/debug/forceloop
+cargo build                    # Compile binary to target/debug/fl
 cargo test                     # Run all tests (unit + integration)
 cargo clippy --all-targets     # Lint incl. tests
 cargo run -- --help            # Show top-level CLI help
@@ -86,13 +86,13 @@ cargo test --test cli_help setup_help_works
 
 Three traits in [src/traits.rs](src/traits.rs) form a layered hierarchy:
 
-- **`Executable`** — all 10 Command objects implement this. Single method `execute(&self, ctx: &Context) -> Result<()>`.
+- **`Executable`** — all 9 Command objects implement this. Single method `execute(&self, ctx: &Context) -> Result<()>`.
 - **`Subcommand: Executable`** — only the 4 top-level CLI subcommands (Setup, Gate, Status, Archive) implement this. Adds `name()` and `description()` for clap help.
-- **`CommandMetadata`** — all 10 Commands implement this. Adds `skill_template()`, `command_template()`, `artifacts()`, and `gate()`. Used to declaratively describe what each command does, what files it produces, and whether the next pipeline step can proceed.
+- **`CommandMetadata`** — only the 5 skill/command structs implement this. Adds `skill_template()`, `command_template()`, `artifacts()`, `gate()`, and `check_list()`. The 4 top-level subcommands (Setup, Gate, Status, Archive) do NOT implement `CommandMetadata` — they are terminal CLI subcommands, not registered skills.
 
 The 9 Command objects:
-- **4 top-level subcommands** in `src/{setup,gate,status,archive}.rs` (each: `pub struct X;` with empty body)
-- **5 skill/command structs** in `src/commands/{new_cmd,plan,audit,implement,review}.rs` (same pattern)
+- **4 top-level subcommands** in `src/{setup,gate,status,archive}.rs`
+- **5 skill/command structs** in `src/commands/{new_cmd,plan,audit,implement,review}.rs`
 
 ### Module Dependency Direction (strict, no reverse imports)
 
@@ -104,18 +104,26 @@ main → cli → {commands/, setup, gate, status, archive}
             {constants, utils}
 ```
 
+```
+main → cli → {commands/, setup, gate, status, archive}
+                 ↓
+            {context, errors, traits, schema, compiler, state}
+                 ↓
+            {constants, utils}
+```
+
 `utils.rs` is the lowest layer — it must not depend on `Context` or any Command type. If a util needs project state, accept it as a function parameter (see `validate_wiki_links(start, project_root: Option<&Path>)` for the pattern).
 
 ### Path Constants
 
-[src/constants.rs](src/constants.rs) holds 11 `&'static str` constants (directory names, file names, env var names). **Convention: use `&'static str`, not `PathBuf` constants.** Callers construct `Path::new(STATE_FILE)` at the use site for cross-platform safety. `pub fn` factory functions (e.g., `state_path() -> PathBuf`) are preferred when a full path is needed.
+[src/constants.rs](src/constants.rs) holds 16`&'static str` constants: directory names (`.forceloop`, `archive`, `specs`, `plans`), file names (`state.json`, `plan.json`, `audit.md`, `wave_state.md`, `review_result.md`, `error.log`, `specs/index.md`, `plans/index.md`), and env var names. **Convention: use `&'static str`, not `PathBuf` constants.** Callers construct `Path::new(CONST)` at the use site for cross-platform safety.
 
 ### Utilities ([src/utils.rs](src/utils.rs))
 
-Two categories coexist:
+Three categories:
 - **Real stdlib wrappers** (2): `current_dir()`, `executable_path()` — one-liners, no design choice
 - **`todo!()` skeletons** (4): `project_root()`, `state_dir()`, `state_file()`, `is_in_project()` — pending marker-strategy decision (`.git` vs `Cargo.toml` vs `.forceloop`)
-- **Real features**: `WikiLinkReport` + `validate_wiki_links()` + 4 internal helpers + 12 unit tests
+- **Real features**: `WikiLinkReport` + `validate_wiki_links()` + 5 internal helpers + 12 unit tests
 
 When implementing one of the `todo!()` skeletons, do not call other `todo!()` functions from within it (avoids cascade). The body is filled in based on a marker-strategy decision that's still pending.
 
@@ -140,8 +148,8 @@ When implementing one of the `todo!()` skeletons, do not call other `todo!()` fu
 - **No new runtime deps by default**: when tempted to add `regex`/`dirs`/`serde_yaml`/etc., consider hand-rolling it first (the wiki link parser is the precedent).
 - **No reverse module imports**: `utils.rs` and `constants.rs` are leaves; importing anything else from them is a red flag.
 - **`impl` is a Rust keyword** — the skill file is `implement.rs` and the struct is `Implement`. `new` keyword avoided with `new_cmd.rs`/`New`.
-- **Chinese-language requirements doc**: [docs/requirment.md](docs/requirment.md) is the source of truth. Skills and "custom commands" in that doc refer to the same 5 structs (not 10).
-- **Skill/Custom Command terminology**: the 6 structs in `src/commands/` serve both roles — they're invoked as "Skills" in the pipeline and as "Custom Commands" by users. The single struct set is intentional (per the Metis review in [.sisyphus/plans/cli-framework.md](.sisyphus/plans/cli-framework.md)).
+- **Chinese-language requirements doc**: [docs/requirment.md](docs/requirment.md) is the source of truth. Skills and "custom commands" in that doc refer to the same 5 structs (not 10). Note: `try_finish` was removed; `archive` is a subcommand, not a skill.
+- **Skill/Custom Command terminology**: the 5 structs in `src/commands/` serve both roles — they're invoked as "Skills" in the pipeline and as "Custom Commands" by users. The single struct set is intentional (per the Metis review in [.sisyphus/plans/cli-framework.md](.sisyphus/plans/cli-framework.md)).
 
 ## Plans & History
 
@@ -156,6 +164,6 @@ When asked to plan a feature, check `.omc/plans/` first for prior related work b
 
 These are intentional `todo!()` placeholders, not bugs:
 - `project_root()`, `state_dir()`, `state_file()`, `is_in_project()` — waiting on marker-strategy decision
-- All `execute()` method bodies — command logic is phase-2 work
-- `gate()` methods — currently all return `Ok(())`
-- `setup`, `status`, `archive` business logic — see `todo!()` in each
+- `Status::execute()` — not yet implemented
+
+Everything else is fully implemented: `setup`, `gate`, `archive`, all 5 command `execute()` bodies, and all 5 command `gate()` methods.

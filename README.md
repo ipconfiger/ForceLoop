@@ -41,7 +41,7 @@ Or run directly without installing:
 npx @forceloop/cli setup --help
 ```
 
-### From crates.io
+### From crates.io (requires Rust toolchain)
 
 ```bash
 cargo install forceloop
@@ -68,6 +68,31 @@ cargo build --release
 - For Claude Code integration: [Claude Code CLI](https://code.claude.com)
 - For oh-my-pi integration: oh-my-pi with Bun runtime
 - For OpenCode integration: [sst/opencode](https://opencode.ai)
+
+### Available platforms
+
+`fl setup` installs to all **three** platforms by default:
+
+| `--tool` | Platform | Command files | Hook |
+|----------|----------|---------------|------|
+| `claude` | Claude Code | `.claude/commands/fl-*.md` | `.claude/settings.json` (`Stop` event) + `.claude/hooks/fl-gate.sh` |
+| `opencode` | OpenCode | `.opencode/command/fl-*.md` | `.opencode/plugins/fl.ts` (`session.idle` event) |
+| `omp` | oh-my-pi | `.omp/commands/fl-*.md` | `.omp/hooks/pre/fl-gate.ts` (`session_stop` event) |
+
+### Per-platform setup
+
+```bash
+# Install to all platforms (default)
+fl setup
+
+# Install to specific platforms only
+fl setup --tool claude
+fl setup --tool opencode
+fl setup --tool omp
+
+# Install to multiple (explicit)
+fl setup --tool claude --tool opencode
+```
 
 ---
 
@@ -166,33 +191,19 @@ exactly what to fix:
 
 ## Platform Setup
 
-`fl setup` installs command files and hooks to one or more platforms.
-By default it installs to **all three**:
-
-```bash
-# Install to all platforms (default)
-fl setup
-
-# Install to specific platforms only
-fl setup --tool claude
-fl setup --tool opencode
-fl setup --tool omp
-
-# Install to multiple (explicit)
-fl setup --tool claude --tool opencode
-```
+`fl setup` installs 5 command files plus platform-specific hooks to each target.
+By default it installs to **all three** platforms.
 
 ### Output directories
 
-| `--tool` | Command files | Hook |
-|----------|---------------|------|
-| `claude` | `.claude/commands/fl-*.md` | `.claude/settings.json` (`Stop` event) + `.claude/hooks/fl-gate.sh` |
-| `opencode` | `.opencode/command/fl-*.md` | `.opencode/plugins/fl.ts` (`session.idle` event) |
-| `omp` | `.omp/commands/fl-*.md` | `.omp/hooks/pre/fl-gate.ts` (`session_stop` event) |
+| `--tool` | Directory | Command files | Hook |
+|----------|-----------|---------------|------|
+| `claude` | `.claude/commands/` | `fl-new.md`, `fl-plan.md`, etc. (5) | `.claude/hooks/fl-gate.sh` + `settings.json` merge |
+| `opencode` | `.opencode/command/` | `fl-new.md`, `fl-plan.md`, etc. (5) | `.opencode/plugins/fl.ts` (auto-loaded) |
+| `omp` | `.omp/commands/` | `fl-new.md`, `fl-plan.md`, etc. (5) | `.omp/hooks/pre/fl-gate.ts` |
 
-Claude Code commands use the native YAML frontmatter format with
-`allowed-tools`. OpenCode and omp share a common YAML format (without
-`allowed-tools`, using `agent` delegation instead).
+Claude Code commands use native YAML frontmatter with `allowed-tools` and `argument-hint`.
+OpenCode and omp share a YAML format that drops `allowed-tools` (using `agent` delegation instead).
 
 ---
 
@@ -213,13 +224,13 @@ flowchart LR
 ### Claude Code (`Stop`)
 
 - **Event**: `Stop` — fires after each response
-- **Hook**: `.claude/hooks/fl-gate.sh` (shell script)
+- **Hook**: `.claude/hooks/fl-gate.sh` (shell script, embedded from [plugin/claude-hook.sh](plugin/claude-hook.sh))
 - **Exit 2**: blocking error — stderr fed to Claude as error message
 - **Auto-fix**: Claude sees the gate error and self-corrects
 
 The wrapper script converts `fl gate`'s exit code 1 into exit code 2,
 which Claude Code treats as a blocking error (the only way to feed
-stderr back to the AI).
+stderr back to the AI). Merged into `.claude/settings.json` by `fl setup`.
 
 ```json
 {
@@ -238,13 +249,15 @@ stderr back to the AI).
 ### OpenCode (`session.idle`)
 
 - **Event**: `session.idle` — fires when the session is idle
-- **Plugin**: `.opencode/plugins/fl.ts` (TypeScript, Bun Shell)
+- **Plugin**: `.opencode/plugins/fl.ts` (TypeScript, Bun Shell, embedded from [plugin/fl.ts](plugin/fl.ts))
+- **Auto-loaded**: OpenCode auto-loads `.ts` files from `.opencode/plugins/` — no config registration needed
 - **Non-zero exit**: captured stdout+stderr sent via `client.session.prompt({ noReply: false })`
+- **Structure**: `export const FlGateHook: Plugin = async ({ client, $ }) => { ... }`
 
 ### oh-my-pi (`session_stop`)
 
 - **Event**: `session_stop` — fires after each agent response
-- **Hook**: `.omp/hooks/pre/fl-gate.ts` (TypeScript, Bun Shell, omp ExtensionAPI)
+- **Hook**: `.omp/hooks/pre/fl-gate.ts` (TypeScript, embedded from [plugin/omp-fl-gate.ts](plugin/omp-fl-gate.ts))
 - **Continuation**: returns `{ continue: true, additionalContext }` to
   inject gate output as a new user message
 - **Limit**: omp enforces a maximum of 8 consecutive continuations per session
@@ -293,7 +306,8 @@ This prevents the codebase from accumulating half-baked features.
 The binary has only 7 runtime dependencies. Features like wiki-link
 validation are hand-rolled rather than pulling in `regex` or `dirs`.
 New dependencies are added only when the cost of hand-rolling exceeds
-the cost of the dependency.
+the cost of the dependency. (Current deps: `clap`, `anyhow`, `thiserror`,
+`serde`, `serde_json`, `flate2`, `tar`.)
 
 ---
 
@@ -312,9 +326,9 @@ main → cli → {commands/, setup, gate, status, archive}
 | Layer | Modules | Role |
 |-------|---------|------|
 | **CLI** | `cli.rs`, `main.rs` | Argument parsing, dispatch |
-| **Commands** | `commands/*.rs` | 5 skill/command objects implementing `CommandMetadata` |
+| **Commands** | `commands/*.rs` | 5 skill/command objects (New, Plan, Audit, Implement, Review) implementing `CommandMetadata` |
 | **Subcommands** | `setup.rs`, `gate.rs`, `status.rs`, `archive.rs` | 4 terminal CLI subcommands implementing `Subcommand` |
-| **Core** | `context.rs`, `errors.rs`, `traits.rs`, `schema.rs`, `compiler.rs`, `state.rs` | Shared types, traits, compilation, pipeline state |
+| **Core** | `context.rs`, `errors.rs`, `traits.rs`, `schema.rs`, `compiler.rs`, `state.rs` | Shared types, traits, compilation, pipeline state with artifact/checklist verification |
 | **Leaf** | `constants.rs`, `utils.rs` | Must not import other crate modules |
 
 ### Key traits
@@ -324,7 +338,7 @@ main → cli → {commands/, setup, gate, status, archive}
 - **`Subcommand: Executable`** — the 4 top-level subcommands.
   Adds `name()` and `description()` for clap help
 - **`CommandMetadata`** — the 5 skill/command structs.
-  Adds `skill_template()`, `command_template()`, `artifacts()`, `gate()`
+  Adds `skill_template()`, `command_template()`, `artifacts()`, `gate()`, `check_list()`
 
 ### Pipeline state machine
 
@@ -340,7 +354,11 @@ struct PipelineState {
 ```
 
 JSON-persisted at `.forceloop/state.json`. Each boolean is `true` when
-the corresponding gate has passed.
+the corresponding gate has passed. State files are made **read-only** on
+disk after each write to prevent LLM tools from corrupting pipeline state.
+
+The read_or_default() method auto-migrates from the legacy
+`{"current_phase":"..."}` format to the current boolean-flag format.
 
 ---
 
@@ -369,9 +387,10 @@ cargo run -- setup --help
 | File | Tests |
 |------|-------|
 | `tests/cli_help.rs` | CLI argument parsing and help output (7 tests) |
-| `tests/command_compile.rs` | Schema compilation for Claude and OpenCode (7 tests) |
-| `tests/setup_tool.rs` | Setup run with various targets, file output, hook generation (21 tests) |
-| `src/*.rs` | 77 unit tests across all modules |
+| `tests/command_compile.rs` | Schema compilation and agent compilation for all platforms (11 tests) |
+| `tests/setup_tool.rs` | Setup with all target combinations, file output, hook generation, migration (21 tests) |
+| `src/*.rs` | Unit tests across all modules (75+ tests) |
+| **Total** | **114 tests** |
 
 ### Conventions
 

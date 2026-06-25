@@ -57,7 +57,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-ForceLoop is a Rust CLI tool for structured development workflow (per [docs/requirment.md](docs/requirment.md)). Binary name: `fl`. The codebase is built **skeleton-first**: traits, structs, and module layout are in place; business logic is deliberately `todo!()` placeholders to be filled in later phases. Two modules (`setup`, `gate`, `state`, `compiler`, `schema`) are fully implemented; the rest remain skeletons.
+ForceLoop is a Rust CLI tool for structured development workflow (per [docs/requirment.md](docs/requirment.md)). Binary name: `fl`. The codebase was built **skeleton-first**: multiple modules have graduated from `todo!()` placeholders to full implementations. Five modules (`setup`, `gate`, `state`, `compiler`, `schema`, `archive`) are fully implemented; three modules (`status`, and 4 `utils.rs` helpers) remain skeletons.
 
 ## Build & Test Commands
 
@@ -72,8 +72,8 @@ cargo run -- setup --help      # Subcommand help
 
 **Integration tests** invoke the binary via `cargo run --` rather than the compiled path, so they work without a prior `cargo build`. Three integration test files:
 - [tests/cli_help.rs](tests/cli_help.rs) — CLI argument parsing and help output (7 tests)
-- [tests/command_compile.rs](tests/command_compile.rs) — End-to-end schema compilation for Claude and OpenCode (8 tests)
-- [tests/setup_tool.rs](tests/setup_tool.rs) — Setup run with various targets, file output, hook generation (12 tests)
+- [tests/command_compile.rs](tests/command_compile.rs) — Schema compilation for Claude, OpenCode, and OhMyPi; compile_agent tool-to-permission mapping; skill vs command schema comparison (11 tests)
+- [tests/setup_tool.rs](tests/setup_tool.rs) — Setup run with various targets, file output, hook generation, migration (21 tests)
 
 **Unit tests** for FS-touching code (see [src/utils.rs](src/utils.rs) wiki-link tests) use `tempfile::TempDir` — a `dev-dependency`. No fixtures should be added to the repo.
 
@@ -105,7 +105,7 @@ Three traits in [src/traits.rs](src/traits.rs) form a layered hierarchy:
 
 - **`Executable`** — all 10 Command objects implement this. Single method `execute(&self, ctx: &Context) -> Result<()>`.
 - **`Subcommand: Executable`** — only the 4 top-level CLI subcommands (Setup, Gate, Status, Archive) implement this. Adds `name()` and `description()` for clap help.
-- **`CommandMetadata`** — the 6 skill/command structs implement this. Adds `skill_template()`, `command_template()`, `artifacts()`, and `gate()`. Declaratively describes what each command does, what files it produces, and whether the next pipeline step can proceed.
+- **`CommandMetadata`** — the 5 skill/command structs implement this. Adds `skill_template()`, `command_template()`, `artifacts()`, `gate()`, and `check_list()`. Declaratively describes what each command does, what files it produces, and whether the next pipeline step can proceed.
 
 The 9 Command objects:
 - **4 top-level subcommands** in `src/{setup,gate,status,archive}.rs`
@@ -118,13 +118,18 @@ Tracks a 6-phase pipeline with JSON-persisted state in `.forceloop/state.json`:
 **New → Plan → Audit → Implement → Review → Done**
 
 Key types:
-- `PipelinePhase` — enum with `New, Plan, Audit, Implement, Review, Done` (serde `rename_all = "lowercase"`)
-- `PipelineState` — struct with `current_phase: PipelinePhase`
-- Methods: `initial()`, `read_or_default(path)`, `write(path)`, `next_phase() -> Option<PipelinePhase>`
+- `PipelineState` — struct with 6 boolean flags (`new`, `plan`, `audit`, `implement`, `review`, `done`), all `#[serde(default)]`
+- Methods: `locate_state_file()`, `locate_forceloop_dir()`, `read_or_default(path)`, `write(path)`, `next_pending() -> Option<&'static str>`
 
-**Utility**: `verify_artifact(path)` — validates artifact files exist; for `.md` files, also runs wiki-link validation.
+**State file protection**: On Unix, `write()` makes the file **read-only** (`chmod 444`) after every write so LLM tools cannot accidentally corrupt pipeline state. `write()` temporarily makes it writable, writes, then re-locks.
 
-The `locate_state_file()` and `locate_forceloop_dir()` methods walk up from cwd looking for `.forceloop/state.json` or `.forceloop/` directory.
+**Legacy migration**: `read_or_default()` automatically migrates from the legacy `{"current_phase":"..."}` format to the new boolean-flag format, rewriting the file on detection.
+
+**Artifact verification**: `verify_artifact(path)` — validates artifact files exist; for `.md` files, also runs wiki-link validation.
+**Checklist verification**: `verify_checklist(path)` — scans a markdown file for `- [ ]` (unchecked) items; rejects if any remain.
+**Utility**: `count_wave_files(dir)`, `count_completed_items(path)`, `append_error_log(detail)`.
+
+The `locate_state_file()` and `locate_forceloop_dir()` methods walk up from cwd looking for `.forceloop/` directory.
 
 ### Schema & Compiler ([src/schema.rs](src/schema.rs), [src/compiler.rs](src/compiler.rs))
 
@@ -132,17 +137,17 @@ Both built tests-first (16 tests before compiler prod code).
 
 **`CommandSchema`** in [src/schema.rs](src/schema.rs): compile-time constant struct with all `&'static str` fields (`name`, `description`, `model`, `argument_hint`, `tools`, `agent`, `prompt`). Zero heap allocation.
 
-**`Target`** enum in [src/compiler.rs](src/compiler.rs): `Claude` or `OpenCode`.
+**`Target`** enum in [src/compiler.rs](src/compiler.rs): `Claude`, `OpenCode`, or `OhMyPi`.
 
 **`compile(schema, target)`**: generates platform-native YAML-frontmatter markdown command files.
 - `Target::Claude` — emits `description`, `allowed-tools`, `argument-hint`, `model`
-- `Target::OpenCode` — emits `description`, `agent`, `model`. Drops `allowed-tools` and `argument-hint` (not supported by OpenCode).
+- `Target::OpenCode` | `Target::OhMyPi` — emit `description`, `agent`, `model`. Drop `allowed-tools` and `argument-hint` (not supported).
 
-**`compile_agent(agent_name, schema)`**: generates OpenCode agent files with tool-to-permission mapping.
+**`compile_agent(agent_name, schema)`**: generates OpenCode agent files with tool-to-permission mapping (maps tools to `read`/`edit`/`bash`/`webfetch`/`websearch`/`task` permission keys).
 
 ### CLI Layer ([src/cli.rs](src/cli.rs))
 
-`Tool` (ValueEnum with `Claude`/`OpenCode`) is converted to `Target` at dispatch time in `main.rs` via `From<Tool> for Target`. This boundary is explicit — internal modules (compiler, setup) never depend on clap's `Tool` type.
+`Tool` (ValueEnum with `Claude`/`OpenCode`/`OhMyPi`) is converted to `Target` at dispatch time in `main.rs` via `From<Tool> for Target`. This boundary is explicit — internal modules (compiler, setup) never depend on clap's `Tool` type.
 
 ### Context ([src/context.rs](src/context.rs))
 
@@ -152,41 +157,57 @@ The `Context` struct carries cross-cutting data (currently only `targets: Vec<Ta
 
 ### Setup ([src/setup.rs](src/setup.rs)) — Fully Implemented
 
-Writes compiled schema files to platform directories and configures hooks. Key functions:
-- `run(targets, root)` — core business logic: writes 6 command files per target; for OpenCode additionally writes hook files
-- `write_opencode_hook(root, written)` — writes `.opencode/opencode.json` (merged, deduped) and `.opencode/plugins/fl.ts` (compile-time embedded from `plugin/fl.ts`)
-- `merge_opencode_plugin(json_path, fl_plugin)` — merges plugin entry into opencode.json
-- `effective_targets(ctx_targets)` — empty => defaults (`[Claude, OpenCode]`), else pass-through
+Writes compiled schema files to platform directories and configures hooks. Writes 5 command files per target (fl-new, fl-plan, fl-audit, fl-implement, fl-review). Key functions:
+- `run(targets, root)` — core business logic: writes 5 command files per target, platform-specific hooks
+- `effective_targets(ctx_targets)` — empty => defaults (`[Claude, OpenCode, OhMyPi]`), else pass-through
+- `write_opencode_hook(root, written)` — writes `.opencode/plugins/fl.ts` (compile-time embedded, auto-loaded by OpenCode from directory). Does NOT write `opencode.json` — local plugins are directory-loaded.
+- `write_omp_hook(root, written)` — writes `.omp/hooks/pre/fl-gate.ts` (oh-my-pi session_stop hook)
+- `write_claude_hook(root, written)` — writes `.claude/hooks/fl-gate.sh` (shell script) + merges Stop hook entry into `.claude/settings.json`
+- `merge_claude_settings(settings_path)` — merges a Stop hook entry into `.claude/settings.json` (preserves existing settings)
+- `merge_opencode_plugin(json_path, fl_plugin)` — `#[allow(dead_code)]` — writing opencode.json for local plugins is incorrect; retained for reference
 - `SetupReport { written: Vec<PathBuf> }` — tracks files written (used for tests and output)
 
-**15 unit tests**: default targets, effective targets, command table count, plugin content contracts, merge edge cases, written file validation.
+**~30 unit tests**: default targets (includes OhMyPi), effective targets, command table count, plugin content contracts (OpenCode/omp/Claude all validated), merge edge cases, file count validation per target, migration from legacy paths, idempotent re-runs.
 
 ### Gate ([src/gate.rs](src/gate.rs)) — Fully Implemented
 
-Pipeline gate control, typically invoked by hooks:
+Pipeline gate control, typically invoked by hooks (Stop hook on Claude, session.idle on OpenCode, session_stop on OhMyPi):
 1. Reads `.forceloop/state.json` via `PipelineState::locate_state_file()` + `read_or_default()`
-2. If `current_phase == Done`, prints completion message
-3. Otherwise, calls `gate()` on the command for the current phase
-4. On gate pass, advances state to next phase via `next_phase()` + `write()`
+2. Finds the first uncompleted gate via sequential boolean checks (`!state.new → !state.plan → !state.audit → !state.implement → !state.review`)
+3. Calls `gate()` on the corresponding command (New, Plan, Audit, Implement, or Review)
+4. If gate passes, sets the boolean flag to `true` and writes updated state
+5. If all gates passed, sets `state.done = true`
 
-### OpenCode Plugin ([plugin/fl.ts](plugin/fl.ts))
+### Platform Hooks
 
-TypeScript file embedded at compile time via `include_str!("../plugin/fl.ts")` in `setup.rs`. The source file at `plugin/fl.ts` is both editable and compile-time embedded — editing the source and rebuilding picks up changes automatically.
+Three platform-specific hooks, all embedded at compile time via `include_str!`:
 
-The plugin subscribes to OpenCode's `session.idle` event and invokes `fl gate` as a hook action.
+| Platform | Hook Script | Event | Location |
+|----------|-------------|-------|----------|
+| **Claude Code** | [plugin/claude-hook.sh](plugin/claude-hook.sh) | `Stop` (after each response) | `.claude/hooks/fl-gate.sh` |
+| **OpenCode** | [plugin/fl.ts](plugin/fl.ts) | `session.idle` | `.opencode/plugins/fl.ts` |
+| **OhMyPi** | [plugin/omp-fl-gate.ts](plugin/omp-fl-gate.ts) | `session_stop` | `.omp/hooks/pre/fl-gate.ts` |
+
+All three run `fl gate` and inject failure output back into the AI session to trigger auto-fix loops:
+- **Claude Code**: shell script exits with code 2 (blocking error, feeds stderr to AI)
+- **OpenCode**: TypeScript plugin via Bun Shell with `.nothrow()`, calls `client.session.prompt({ noReply: false })`
+- **OhMyPi**: TypeScript via `ExtensionAPI`, returns `{ continue: true, additionalContext }`
 
 ### Path Constants ([src/constants.rs](src/constants.rs))
 
 All `&'static str` constants (directory/file/env var names). **Convention: use `&'static str`, not `PathBuf` constants.** Callers construct `Path::new(CONST)` at use site for cross-platform safety.
 
-Constants: `FORCELOOP_DIR` (`.forceloop`), `STATE_FILE`, `RESULT_FILE`, `PLAN_FILE`, `SKILLS_DIR`, `COMMANDS_DIR`, `HOOKS_DIR`, `ARCHIVE_DIR`, `GIT_DIR` (`.git`), `CARGO_MANIFEST` (`Cargo.toml`), `ENV_PROJECT_ROOT` (`FORCELOOP_PROJECT_ROOT`), `ENV_DEBUG` (`FORCELOOP_DEBUG`).
+16 constants total (all `&'static str`):
+- **Directories**: `FORCELOOP_DIR` (`.forceloop`), `SKILLS_DIR`, `COMMANDS_DIR`, `HOOKS_DIR`, `ARCHIVE_DIR`, `SPECS_DIR`, `PLANS_DIR`, `GIT_DIR`
+- **Files**: `STATE_FILE`, `RESULT_FILE`, `PLAN_FILE`, `SPECS_INDEX` (`specs/index.md`), `PLANS_INDEX` (`plans/index.md`), `AUDIT_FILE`, `WAVE_STATE`, `REVIEW_RESULT`, `ERROR_LOG`
+- **Env vars**: `ENV_PROJECT_ROOT` (`FORCELOOP_PROJECT_ROOT`), `ENV_DEBUG` (`FORCELOOP_DEBUG`)
 
 ### Utilities ([src/utils.rs](src/utils.rs))
 
 Three categories:
 - **Real stdlib wrappers** (2): `current_dir()`, `executable_path()`
 - **`todo!()` skeletons** (4): `project_root()`, `state_dir()`, `state_file()`, `is_in_project()` — pending marker-strategy decision (`.git` vs `Cargo.toml` vs `.forceloop`). When implementing one, do not call other `todo!()` functions from within it.
-- **Real features**: `WikiLinkReport` + `validate_wiki_links()` + 4 internal helpers + 12 unit tests
+- **Real features**: `WikiLinkReport` + `validate_wiki_links()` + 5 internal helpers + 14 unit tests (single link, broken link, cycle detection, standard MD links, alias and heading, relative resolution, project root fallback, deduplication, nonexistent start, sorted output, external URLs)
 
 ### Wiki Link Validator
 
@@ -204,17 +225,28 @@ Three categories:
 
 `anyhow::Error` is used at the application boundary (`main.rs`), while `thiserror`/`ForceLoopError` is used in library modules.
 
-## The 6 Skill/Command Objects
+## The 5 Skill/Command Objects
 
-All follow the same skeleton pattern: `pub struct X;` with `todo!()` `execute()` body. Each has `CommandMetadata` implemented with skill/command templates, tools list, artifacts, and `gate()`.
+All 5 follow the same pattern: `pub struct X;` with a real `execute()` body (checks pipeline prerequisites, creates directory scaffolds), full `CommandMetadata` implementation with skill/command templates, tools list, artifacts, and real `gate()` (verifies artifacts and checklists).
 
 | Struct | File | Tools | Artifacts | Gate |
 |--------|------|-------|-----------|------|
-| `New` | `commands/new_cmd.rs` | Read, Write | `.forceloop/plan.json` | Checks plan.json exists |
-| `Plan` | `commands/plan.rs` | Read, Write | `.forceloop/plan.json` | Checks plan.json has phases |
-| `Audit` | `commands/audit.rs` | Read, Grep, Glob | (none) | Permissive (Ok(())) |
-| `Implement` | `commands/implement.rs` | Read, Write, Edit, Bash, Grep, Glob | (none) | Permissive (Ok(())) |
-| `Review` | `commands/review.rs` | Read, Grep, Bash | (none) | Permissive (Ok(())) |
+| `New` | `commands/new_cmd.rs` | Read, Write | `.forceloop/specs/index.md` | Verifies specs/index.md exists + wiki links |
+| `Plan` | `commands/plan.rs` | Read, Write | `.forceloop/plans/index.md` | Verifies plans/index.md exists + wiki links; auto-generates wave_state.md |
+| `Audit` | `commands/audit.rs` | Read, Grep, Glob | `.forceloop/audit.md` | Verifies audit.md exists + wiki links + all checklist items `[x]` |
+| `Implement` | `commands/implement.rs` | Read, Write, Edit, Bash, Grep, Glob | `.forceloop/wave_state.md` | Verifies wave_state.md exists + all checklist items `[x]` + all waves accounted for |
+| `Review` | `commands/review.rs` | Read, Grep, Bash | `.forceloop/review_result.md` | Verifies review_result.md exists + all checklist items `[x]` |
+
+### Remaining Skeletons
+
+These `todo!()` placeholders remain:
+| Location | Function | Status |
+|----------|----------|--------|
+| `src/utils.rs` | `project_root()` | Pending marker-strategy decision |
+| `src/utils.rs` | `state_dir()` | Pending marker-strategy decision |
+| `src/utils.rs` | `state_file()` | Pending marker-strategy decision |
+| `src/utils.rs` | `is_in_project()` | Pending marker-strategy decision |
+| `src/status.rs` | `Status::execute()` | Not yet implemented |
 
 ## Conventions
 
@@ -224,8 +256,8 @@ All follow the same skeleton pattern: `pub struct X;` with `todo!()` `execute()`
 - **No new runtime deps by default**: when tempted to add `regex`/`dirs`/`serde_yaml`/etc., consider hand-rolling it first (the wiki link parser is the precedent).
 - **No reverse module imports**: `utils.rs` and `constants.rs` are leaves; importing anything else from them is a red flag.
 - **`impl` is a Rust keyword** — the skill file is `implement.rs` and the struct is `Implement`. `new` keyword avoided with `new_cmd.rs`/`New`.
-- **Chinese-language requirements doc**: [docs/requirment.md](docs/requirment.md) is the source of truth. Skills and "custom commands" in that doc refer to the same 5 structs (not 10).
-- **Skill/Custom Command terminology**: the 6 structs in `src/commands/` serve both roles — they're invoked as "Skills" in the pipeline and as "Custom Commands" by users. The single struct set is intentional.
+- **Chinese-language requirements doc**: [docs/requirment.md](docs/requirment.md) is the source of truth. Skills and "custom commands" in that doc refer to the same 5 structs (not 10). Note: `try_finish` was removed; `archive` is a subcommand, not a skill.
+- **Skill/Custom Command terminology**: the 5 structs in `src/commands/` serve both roles — they're invoked as "Skills" in the pipeline and as "Custom Commands" by users. The single struct set is intentional.
 - **Compile-time embedding**: TypeScript plugin source in `plugin/fl.ts` is embedded via `include_str!("../plugin/fl.ts")`. The source file remains editable; rebuild picks up changes.
 
 ## Plans & History
@@ -241,6 +273,6 @@ When asked to plan a feature, check `.omc/plans/` first for prior related work b
 
 These are intentional `todo!()` placeholders, not bugs:
 - `project_root()`, `state_dir()`, `state_file()`, `is_in_project()` — waiting on marker-strategy decision
-- All 6 command `execute()` method bodies — command logic is phase-2 work
-- The 6 skill `gate()` methods — currently all return `Ok(())` (gate-advance logic lives in `src/gate.rs`, not here)
-- `Status::execute()` and `Archive::execute()` — see `todo!()` in each
+- `Status::execute()` — not yet implemented
+
+Everything else is fully implemented: `setup`, `gate`, `archive`, all 5 command `execute()` bodies, and all 5 command `gate()` methods.
