@@ -45,10 +45,20 @@ ALL_TARGETS="aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu a
 build_all() {
   echo "═══ Building all platform binaries ═══"
   echo ""
+
+  # Detect native target — use regular cargo, zigbuild fails on macOS
+  local native_target
+  native_target="$(rustc -vV | grep host | awk '{print $2}')"
+
   for target in $ALL_TARGETS; do
     npm_dir="$(target_to_npm_dir "$target")"
     echo "▸ $target → npm/$npm_dir"
-    cargo zigbuild --release --target "$target" 2>&1 | tail -1
+
+    if [ "$target" = "$native_target" ]; then
+      cargo build --release 2>&1 | tail -1
+    else
+      cargo zigbuild --release --target "$target" 2>&1 | tail -1
+    fi
   done
   echo ""
   echo "✅ All builds complete"
@@ -59,22 +69,28 @@ build_all() {
 copy_binaries() {
   echo ""
   echo "═══ Copying binaries ═══"
-  local ver; ver="$(version)"
+  local native_target
+  native_target="$(rustc -vV | grep host | awk '{print $2}')"
 
   for target in $ALL_TARGETS; do
     npm_dir="$(target_to_npm_dir "$target")"
 
-    # Try custom CARGO_TARGET_DIR first, then default ./target/
-    local src
-    if [ -f "$CARGO_TARGET_DIR/$target/release/fl.exe" ]; then
-      src="$CARGO_TARGET_DIR/$target/release/fl.exe"
-    elif [ -f "$CARGO_TARGET_DIR/$target/release/fl" ]; then
-      src="$CARGO_TARGET_DIR/$target/release/fl"
-    elif [ -f "$PROJECT_ROOT/target/$target/release/fl.exe" ]; then
-      src="$PROJECT_ROOT/target/$target/release/fl.exe"
-    elif [ -f "$PROJECT_ROOT/target/$target/release/fl" ]; then
-      src="$PROJECT_ROOT/target/$target/release/fl"
+    # Binary location: native targets go to target/release/, cross targets to target/<triple>/release/
+    local search_dirs
+    if [ "$target" = "$native_target" ]; then
+      search_dirs="$CARGO_TARGET_DIR/release $PROJECT_ROOT/target/release"
     else
+      search_dirs="$CARGO_TARGET_DIR/$target/release $PROJECT_ROOT/target/$target/release"
+    fi
+
+    # Determine binary source path
+    local src=""
+    for dir in $search_dirs; do
+      if [ -f "$dir/fl.exe" ]; then src="$dir/fl.exe"; break; fi
+      if [ -f "$dir/fl" ]; then src="$dir/fl"; break; fi
+    done
+
+    if [ -z "$src" ]; then
       echo "  ⚠ Binary not found for $target — skipping"
       continue
     fi
